@@ -1,0 +1,11 @@
+node_modules
+**/node_modules
+dist
+demo/.tmp
+demo/.strapi
+demo/dist
+demo/build
+demo/plugin.tgz
+demo/.env
+demo/public/uploads/*
+.git

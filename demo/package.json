@@ -1,0 +1,30 @@
+{
+  "name": "supertext-strapi-demo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Strapi 5 demo of the Supertext translation plugin",
+  "scripts": {
+    "build": "strapi build",
+    "develop": "strapi develop",
+    "start": "strapi start",
+    "strapi": "strapi"
+  },
+  "dependencies": {
+    "@strapi/plugin-users-permissions": "5.56.0",
+    "@strapi/provider-upload-local": "5.56.0",
+    "@strapi/strapi": "5.56.0",
+    "better-sqlite3": "^13.0.3",
+    "pg": "8.19.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.6",
+    "strapi-plugin-supertext-translation": "file:plugin.tgz",
+    "styled-components": "^6.5.3"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "strapi": {
+    "uuid": "ae97edc3-b9a5-4000-bd34-43b102ca9a04"
+  }
+}

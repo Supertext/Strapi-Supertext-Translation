@@ -1,0 +1,10 @@
+{
+  "collectionName": "components_shared_seos",
+  "info": { "displayName": "SEO", "icon": "search", "description": "Search engine and social media texts" },
+  "options": {},
+  "attributes": {
+    "metaTitle": { "type": "string", "maxLength": 70 },
+    "metaDescription": { "type": "text", "maxLength": 170 },
+    "noIndex": { "type": "boolean", "default": false }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "kind": "collectionType",
+  "collectionName": "articles",
+  "info": {
+    "singularName": "article",
+    "pluralName": "articles",
+    "displayName": "Article",
+    "description": "Demo content for the Supertext translation plugin"
+  },
+  "options": { "draftAndPublish": true },
+  "pluginOptions": { "i18n": { "localized": true } },
+  "attributes": {
+    "title": { "type": "string", "required": true, "pluginOptions": { "i18n": { "localized": true } } },
+    "slug": { "type": "uid", "targetField": "title", "pluginOptions": { "i18n": { "localized": true } } },
+    "summary": { "type": "text", "pluginOptions": { "i18n": { "localized": true } } },
+    "body": { "type": "blocks", "pluginOptions": { "i18n": { "localized": true } } },
+    "cover": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["images"],
+      "pluginOptions": { "i18n": { "localized": false } }
+    },
+    "readingTime": { "type": "integer", "pluginOptions": { "i18n": { "localized": false } } },
+    "seo": { "type": "component", "component": "shared.seo", "repeatable": false, "pluginOptions": { "i18n": { "localized": true } } },
+    "sections": {
+      "type": "dynamiczone",
+      "components": ["sections.feature", "sections.quote"],
+      "pluginOptions": { "i18n": { "localized": true } }
+    }
+  }
+}
