@@ -95,6 +95,8 @@ npm run demo:install     # build + pack the plugin, install it into demo/
 cd demo && npm run develop
 ```
 
+Without `DATABASE_URL` the demo uses SQLite via `better-sqlite3`, an optional dependency: it's skipped where it can't be installed (e.g. the Railway image, which uses PostgreSQL). If SQLite fails to load locally, run `npm --prefix demo rebuild better-sqlite3`.
+
 The mock "translates" by prefixing every text node with `[<target>] `, which makes it easy to see which fields were translated. Point `SUPERTEXT_API_KEY`/`SUPERTEXT_API_ENDPOINT` in `demo/.env` at the real API to test for real.
 
 Why a tarball instead of `npm link`? Linking makes the plugin load its own copy of React and the design system, which breaks the admin panel. `npm install ./plugin.tgz` puts the plugin inside `demo/node_modules` so it shares the demo's dependencies. Install the tarball explicitly (as `demo:install` does): with an unchanged version number, a plain `npm install` keeps the old copy.

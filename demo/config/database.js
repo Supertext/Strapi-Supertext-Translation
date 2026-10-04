@@ -1,6 +1,7 @@
 const path = require('path');
 
-// Postgres when DATABASE_URL is set (Railway), otherwise a local SQLite file.
+// Postgres when DATABASE_URL is set (Railway), otherwise a local SQLite file
+// (better-sqlite3 is an optional dependency, so images without build tools can skip it).
 module.exports = ({ env }) =>
   env('DATABASE_URL')
     ? {

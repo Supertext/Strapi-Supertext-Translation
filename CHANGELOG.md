@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Demo: `better-sqlite3` is now optional, so the Railway image (PostgreSQL, no build tools) installs cleanly.
 
 ## 0.1.0 — 2026-10-04
 - First version for Strapi 5: **Supertext translation** panel in the Content Manager's edit view to translate the saved entry into one or more locales.
