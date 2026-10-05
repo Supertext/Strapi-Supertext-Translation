@@ -2,6 +2,8 @@
 
 For editors. Once an administrator has installed the plugin (see [INSTALLATION.md](INSTALLATION.md)), you translate entries straight from the Content Manager.
 
+*Screenshots are from the Strapi 5 demo in this repository.*
+
 ## Translate an entry
 
 1. Open the entry in the **Content Manager** and make sure the language selector at the top right shows the language you want to translate **from** (usually your default language).
@@ -10,7 +12,13 @@ For editors. Once an administrator has installed the plugin (see [INSTALLATION.m
 4. Tick the languages you want to translate **into**.
 5. Click **Translate with Supertext**.
 
+![An English article in the Content Manager, with the Supertext translation panel in the right-hand column](images/edit-view.png)
+
+<img src="images/panel-select.png" alt="Supertext panel with German (Switzerland) ticked" width="260">
+
 After a few seconds a green message confirms the result, and the panel lists each language, for example *French (Switzerland): created (13 fields)*. Click **Open** next to a language to jump to that translation.
+
+<img src="images/panel-done.png" alt="Panel after translating: German (Switzerland) created, with an Open button" width="260">
 
 ## Review and publish
 
@@ -20,9 +28,13 @@ Translations are saved as **drafts**, so nothing goes live unreviewed.
 2. Read through it and adjust anything you'd phrase differently, then **Save**.
 3. **Publish** when you're happy.
 
+![The German translation, saved as a draft: title, summary, slug and rich text translated, formatting and links kept](images/translated-de.png)
+
 ## Translating again
 
 Languages that already have a translation are marked *(exists)*. If you tick one, the panel warns you that it will be **replaced**: all of its text is translated again from the current source. Use this after the source has changed a lot. To fix small things, edit the translation by hand instead, so your edits aren't lost.
+
+<img src="images/panel-overwrite.png" alt="Panel warning that the existing German translation will be replaced" width="260">
 
 When a translation is replaced, its URL slug is kept so existing links keep working. A new translation gets a slug built from its translated title.
 

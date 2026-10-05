@@ -9,9 +9,13 @@ For administrators setting up the plugin in a Strapi project.
 | Strapi | 5.x (tested with 5.56) |
 | Node.js | 20 or newer (22 recommended) |
 | Database | Any database Strapi supports (tested with SQLite; the demo runs on PostgreSQL) |
-| Strapi i18n | Enabled for every content type you want to translate (*Content-Type Builder → Advanced settings → Internationalization*) |
+| Strapi i18n | Enabled for every content type you want to translate (*Content-Type Builder → Advanced settings → Internationalization*), with the target languages added under *Settings → Internationalization* |
 | Supertext | An account with an API key (supertext.com → Integrations → API) |
 | Network | The Strapi server must reach `https://api.supertext.com` over HTTPS |
+
+The languages Supertext translates into are Strapi's own locales:
+
+![Settings → Internationalization with English as default and German, French and Italian (Switzerland)](images/locales.png)
 
 ## 1. Install the package
 
@@ -66,6 +70,8 @@ npm run start      # or: npm run develop
 ```
 
 A new **Supertext translation** panel now appears in the right-hand column of every localized entry in the Content Manager, and **Settings → Supertext → Translation** shows the configuration.
+
+![Settings → Supertext → Translation: connection status, endpoint, and how each Strapi locale is sent to Supertext](images/settings.png)
 
 ## 4. Check it works
 

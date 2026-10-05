@@ -114,6 +114,21 @@ CI (`.github/workflows/ci.yml`) runs type checks, tests and the build on Node 20
 
 The end-to-end flow (translate, overwrite, permissions, error responses, admin panel UI) was verified manually against the demo and the mock API; there are no automated end-to-end tests yet.
 
+## Docs screenshots
+
+The screenshots in `docs/images/` come from the local demo and are regenerated with one script whenever the panel, settings page or demo content changes:
+
+```bash
+npm run docs:mock &        # stand-in API that returns real German for the sample article
+npm run demo:install
+cd demo && rm -rf .tmp && DEMO_ADMIN_EMAIL=anna.muster@example.com DEMO_ADMIN_PASSWORD=Docs12345 \
+  SUPERTEXT_API_KEY=test-key SUPERTEXT_API_ENDPOINT=http://127.0.0.1:8765/v1/ npm run develop &
+cd .. && npx playwright install chromium   # once
+npm run docs:screenshots
+```
+
+Start from an empty demo database (`rm -rf demo/.tmp`) so the first translation shows as *created*. The script logs in with `DEMO_ADMIN_EMAIL`/`DEMO_ADMIN_PASSWORD` (the defaults above are local-only), captures the edit view, the panel before/after translating, the German result, the overwrite warning, the settings page and the locales page, and shows the live endpoint on the settings screenshot instead of the local stand-in's address.
+
 ## Demo deployment (Railway)
 
 The Railway service `Strapi` in project `supertext-cms-demos` builds this repo's `Dockerfile` on every push to `main`. The image builds the plugin, installs it into `demo/`, builds the admin panel and runs `strapi start`.
