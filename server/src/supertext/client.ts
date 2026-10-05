@@ -19,6 +19,20 @@ export interface ClientOptions {
   pollTimeoutMs?: number;
   /** Injected for tests. */
   fetch?: typeof fetch;
+  /** Injected for tests. */
+  sleep?: (ms: number) => Promise<void>;
+}
+
+/** Retries after HTTP 429 (the API limits requests per second), e.g. when several languages start at once. */
+export const RATE_LIMIT_RETRIES = 4;
+
+/** Wait before retry `attempt` (0-based): the Retry-After header if present, else 1 s, 2 s, 4 s, 8 s plus jitter. */
+export function retryDelayMs(attempt: number, retryAfter: string | null): number {
+  const seconds = Number(retryAfter);
+  if (retryAfter && Number.isFinite(seconds) && seconds >= 0) {
+    return Math.min(30_000, seconds * 1000);
+  }
+  return 1000 * 2 ** attempt + Math.floor(Math.random() * 250);
 }
 
 export interface TranslateOptions {
@@ -44,6 +58,7 @@ export class SupertextClient {
   private readonly pollIntervalMs: number;
   private readonly pollTimeoutMs: number;
   private readonly fetchFn: typeof fetch;
+  private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(private readonly options: ClientOptions) {
     if (!options.apiKey) {
@@ -53,6 +68,7 @@ export class SupertextClient {
     this.pollIntervalMs = Math.max(250, options.pollIntervalMs ?? 2000);
     this.pollTimeoutMs = Math.max(5000, options.pollTimeoutMs ?? 180_000);
     this.fetchFn = options.fetch ?? fetch;
+    this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
   }
 
   /** Translates a complete HTML document and returns the translated HTML. */
@@ -124,18 +140,25 @@ export class SupertextClient {
 
   private async request(method: string, path: string, body?: FormData): Promise<Response> {
     let response: Response;
-    try {
-      response = await this.fetchFn(this.endpoint + path, {
-        method,
-        body,
-        headers: {
-          Authorization: authHeader(this.options.apiKey),
-          Accept: 'application/json',
-        },
-        signal: AbortSignal.timeout(30_000),
-      });
-    } catch (error) {
-      throw new SupertextError(`Could not reach Supertext: ${(error as Error).message}`);
+    for (let attempt = 0; ; attempt++) {
+      try {
+        response = await this.fetchFn(this.endpoint + path, {
+          method,
+          body,
+          headers: {
+            Authorization: authHeader(this.options.apiKey),
+            Accept: 'application/json',
+          },
+          signal: AbortSignal.timeout(30_000),
+        });
+      } catch (error) {
+        throw new SupertextError(`Could not reach Supertext: ${(error as Error).message}`);
+      }
+      if (response.status !== 429 || attempt >= RATE_LIMIT_RETRIES) {
+        break;
+      }
+      await response.body?.cancel().catch(() => undefined);
+      await this.sleep(retryDelayMs(attempt, response.headers.get('retry-after')));
     }
     if (response.ok) {
       return response;

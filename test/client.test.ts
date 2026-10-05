@@ -68,3 +68,32 @@ describe('authHeader', () => {
     expect(authHeader(' Supertext-Auth-Key abc+/= ')).toBe('Supertext-Auth-Key abc+/=');
   });
 });
+
+describe('rate limiting', () => {
+  it('retries after HTTP 429 and then succeeds', async () => {
+    let limited = 2;
+    const { fn } = fakeFetch(({ method, url }) => {
+      if (method === 'POST') return limited-- > 0 ? new Response('rate limit', { status: 429 }) : Response.json({ file_id: 'f3' });
+      if (url.endsWith('/status')) return Response.json({ status: 'done' });
+      if (url.endsWith('/translation')) return new Response('<div data-st-id="0">Hallo</div>');
+      return Response.json({});
+    });
+    const waits: number[] = [];
+    const client = new SupertextClient({ apiKey: 'k', fetch: fn, sleep: async (ms) => void waits.push(ms) });
+    expect(await client.translateDocument('<div>Hi</div>', { targetLanguage: 'de-CH' })).toContain('Hallo');
+    expect(waits).toHaveLength(2);
+  });
+
+  it('gives up after a few retries', async () => {
+    const { fn, calls } = fakeFetch(() => new Response('rate limit', { status: 429 }));
+    const client = new SupertextClient({ apiKey: 'k', fetch: fn, sleep: async () => undefined });
+    await expect(client.validate()).rejects.toThrow(/Too many requests/);
+    expect(calls).toHaveLength(5);
+  });
+
+  it('honours Retry-After', async () => {
+    const { retryDelayMs } = await import('../server/src/supertext/client');
+    expect(retryDelayMs(0, '3')).toBe(3000);
+    expect(retryDelayMs(1, null)).toBeGreaterThanOrEqual(2000);
+  });
+});

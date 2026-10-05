@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Fix: translating into several languages at once no longer fails with *Too many requests*: requests that hit Supertext's per-second rate limit are retried automatically.
 - Fix: the API key now works whether it is entered with or without the `Supertext-Auth-Key ` prefix Supertext shows it with.
 - Docs: screenshots in the user and installation guides, regenerated with `npm run docs:screenshots`.
 - Demo: optional `DEMO_ADMIN_*` / `DEMO_EDITOR_*` variables create admin accounts on startup; the Editor role gets all demo locales.

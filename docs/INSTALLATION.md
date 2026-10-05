@@ -105,6 +105,7 @@ Remove the `supertext` block from `config/plugins`, run `npm uninstall strapi-pl
 
 | Message | Cause / fix |
 | --- | --- |
+| *Too many requests to Supertext* | The API's per-second limit was still exceeded after 4 automatic retries. Wait a moment and translate again. |
 | *Supertext is not configured yet* / *No API key* | Set `SUPERTEXT_API_KEY` (or `config.apiKey`) and restart Strapi. |
 | *Authentication failed* | The key is wrong or revoked. |
 | *This content type is not localized* | Enable internationalization for the content type in the Content-Type Builder. |
