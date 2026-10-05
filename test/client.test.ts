@@ -60,3 +60,11 @@ describe('SupertextClient', () => {
     expect(() => new SupertextClient({ apiKey: '' })).toThrow(/No Supertext API key/);
   });
 });
+
+describe('authHeader', () => {
+  it('accepts the key with or without the Supertext-Auth-Key prefix', async () => {
+    const { authHeader } = await import('../server/src/supertext/client');
+    expect(authHeader('abc+/=')).toBe('Supertext-Auth-Key abc+/=');
+    expect(authHeader(' Supertext-Auth-Key abc+/= ')).toBe('Supertext-Auth-Key abc+/=');
+  });
+});

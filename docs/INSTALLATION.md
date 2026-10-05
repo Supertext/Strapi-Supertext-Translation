@@ -82,7 +82,7 @@ A new **Supertext translation** panel now appears in the right-hand column of ev
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
-| `apiKey` | `SUPERTEXT_API_KEY` env var | Supertext API key |
+| `apiKey` | `SUPERTEXT_API_KEY` env var | Supertext API key, with or without the `Supertext-Auth-Key ` prefix |
 | `endpoint` | `SUPERTEXT_API_ENDPOINT` env var, else `https://api.supertext.com/v1/` | API base URL (`https://api.staging.supertext.com/v1/` for staging) |
 | `locales` | `{}` | Per Strapi locale: `code` (Supertext target code, defaults to the Strapi locale code) and `politeness` (`more` = formal, `less` = informal, `default`) |
 | `contentTypes` | `[]` (all localized types) | Allow-list of content-type UIDs, e.g. `['api::article.article']` |
