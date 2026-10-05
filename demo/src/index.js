@@ -47,11 +47,88 @@ const SAMPLE = {
   ],
 };
 
+/**
+ * Creates admin accounts from environment variables, so a fresh demo is ready
+ * without anyone registering in the browser. Existing accounts are left alone
+ * (their password is never overwritten).
+ *
+ *   DEMO_ADMIN_EMAIL / DEMO_ADMIN_PASSWORD  → Super Admin
+ *   DEMO_EDITOR_EMAIL / DEMO_EDITOR_PASSWORD → Editor (e.g. for automated tests)
+ */
+async function ensureAccounts(strapi) {
+  const users = strapi.service('admin::user');
+  const roles = strapi.service('admin::role');
+  const accounts = [
+    { prefix: 'DEMO_ADMIN', role: 'strapi-super-admin', firstname: 'Demo', lastname: 'Admin' },
+    { prefix: 'DEMO_EDITOR', role: 'strapi-editor', firstname: 'Demo', lastname: 'Editor' },
+  ];
+
+  for (const account of accounts) {
+    const email = (process.env[`${account.prefix}_EMAIL`] || '').trim().toLowerCase();
+    const password = process.env[`${account.prefix}_PASSWORD`] || '';
+    if (!email || !password) continue;
+
+    if (await users.exists({ email })) {
+      strapi.log.info(`[demo] ${account.prefix}_EMAIL account already exists, leaving it unchanged`);
+      continue;
+    }
+    // Strapi's own rule: 8+ characters with an upper-case letter, a lower-case letter and a number.
+    if (password.length < 8 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password)) {
+      strapi.log.warn(
+        `[demo] ${account.prefix}_PASSWORD is too weak (8+ characters, upper- and lower-case letter, number); account not created`
+      );
+      continue;
+    }
+    const role = await roles.findOne({ code: account.role });
+    if (!role) {
+      strapi.log.warn(`[demo] Role ${account.role} not found; ${account.prefix} account not created`);
+      continue;
+    }
+    await users.create({
+      email,
+      firstname: account.firstname,
+      lastname: account.lastname,
+      password,
+      registrationToken: null,
+      isActive: true,
+      roles: [role.id],
+    });
+    strapi.log.info(`[demo] Created ${account.role} account from ${account.prefix}_EMAIL`);
+  }
+}
+
+/**
+ * Strapi doesn't grant locales added later to existing roles, so the demo's
+ * Editor role would see no entries. Give its content permissions every locale.
+ */
+async function grantEditorAllLocales(strapi, localeCodes) {
+  const role = await strapi.service('admin::role').findOne({ code: 'strapi-editor' });
+  if (!role) return;
+  const permissions = await strapi.db.query('admin::permission').findMany({
+    where: { role: role.id, action: { $startsWith: 'plugin::content-manager.explorer.' } },
+  });
+  for (const permission of permissions) {
+    const properties = permission.properties || {};
+    const current = properties.locales || [];
+    if (localeCodes.every((code) => current.includes(code))) continue;
+    await strapi.db.query('admin::permission').update({
+      where: { id: permission.id },
+      data: { properties: { ...properties, locales: [...new Set([...current, ...localeCodes])] } },
+    });
+  }
+}
+
 module.exports = {
   register() {},
 
-  /** Demo setup: Swiss locales plus one English sample article. */
+  /** Demo setup: admin accounts from env, Swiss locales, one English sample article. */
   async bootstrap({ strapi }) {
+    try {
+      await ensureAccounts(strapi);
+    } catch (error) {
+      strapi.log.error(`[demo] Could not create demo accounts: ${error.message}`);
+    }
+
     const locales = strapi.plugin('i18n').service('locales');
     const existing = (await locales.find()).map((locale) => locale.code);
     for (const locale of LOCALES) {
@@ -59,6 +136,12 @@ module.exports = {
         await locales.create(locale);
         strapi.log.info(`[demo] Added locale ${locale.code}`);
       }
+    }
+
+    try {
+      await grantEditorAllLocales(strapi, (await locales.find()).map((locale) => locale.code));
+    } catch (error) {
+      strapi.log.warn(`[demo] Could not grant locales to the Editor role: ${error.message}`);
     }
 
     const articles = strapi.documents('api::article.article');

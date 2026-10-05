@@ -120,7 +120,16 @@ The Railway service `Strapi` in project `supertext-cms-demos` builds this repo's
 
 Service variables: `DATABASE_URL` (from the Postgres service), `APP_KEYS`, `ADMIN_JWT_SECRET`, `API_TOKEN_SALT`, `TRANSFER_TOKEN_SALT`, `JWT_SECRET`, `ENCRYPTION_KEY`, and `SUPERTEXT_API_KEY` (set by hand in the Railway dashboard). Uploads live on the volume mounted at `/app/public/uploads`.
 
-On first start the demo creates the locales de-CH, fr-CH and it-CH and one English sample article (`demo/src/index.js`).
+Optional variables that make a fresh demo ready to use without registering in the browser (set them in the Railway dashboard; never commit them):
+
+| Variable | Effect |
+| --- | --- |
+| `DEMO_ADMIN_EMAIL`, `DEMO_ADMIN_PASSWORD` | Creates a Super Admin on startup |
+| `DEMO_EDITOR_EMAIL`, `DEMO_EDITOR_PASSWORD` | Creates an Editor, e.g. for automated tests |
+
+Accounts are only created if they don't exist yet; an existing account's password is never changed by these variables (change it in the admin panel instead). Passwords must follow Strapi's rule (8+ characters, upper- and lower-case letter, number), otherwise the account is skipped with a warning in the log.
+
+On every start the demo also ensures the locales de-CH, fr-CH and it-CH, gives Strapi's Editor role access to all locales (Strapi doesn't grant locales added later to existing roles), and creates one English sample article if none exists (`demo/src/index.js`).
 
 ## Releasing
 

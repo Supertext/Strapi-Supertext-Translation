@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Demo: optional `DEMO_ADMIN_*` / `DEMO_EDITOR_*` variables create admin accounts on startup; the Editor role gets all demo locales.
 - Demo: `better-sqlite3` is now optional, so the Railway image (PostgreSQL, no build tools) installs cleanly.
 
 ## 0.1.0 — 2026-10-04
