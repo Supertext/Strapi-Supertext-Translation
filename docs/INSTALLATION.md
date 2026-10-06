@@ -78,7 +78,7 @@ npm run start      # or: npm run develop
 
 A new **Supertext translation** panel now appears in the right-hand column of every localized entry in the Content Manager, and **Settings → Supertext → Translation** shows the configuration.
 
-![Settings → Supertext → Translation: connection status, endpoint, and how each Strapi locale is sent to Supertext](images/settings.png)
+![Settings → Supertext → Translation: connection status, links to create a Supertext account and generate an API key, the endpoint, and how each Strapi locale is sent to Supertext](images/settings.png)
 
 ## 4. Check it works
 
