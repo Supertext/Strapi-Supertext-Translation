@@ -17,6 +17,8 @@ Open an entry, tick the languages in the **Supertext translation** panel, click 
 | [User guide](docs/USER_GUIDE.md) | Editors: translating, reviewing, what gets translated |
 | [Developer guide](docs/DEVELOPER.md) | Architecture, API protocol, local development, tests, demo deployment, releases |
 
+You need a Supertext account and API key: [create an account](https://www.supertext.com/person/en/account/signin), then generate the key at [supertext.com → Integrations → API](https://www.supertext.com/en/integrations/api) (requires the Admin role).
+
 Quick start (not on npm yet — see the installation guide for building the package):
 
 ```js

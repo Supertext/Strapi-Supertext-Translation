@@ -37,7 +37,7 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
   const client = () => {
     const { apiKey, endpoint, pollIntervalMs, pollTimeoutMs } = config();
     if (!apiKey) {
-      throw new TranslationError('No Supertext API key configured. Set SUPERTEXT_API_KEY on the server.', 503);
+      throw new TranslationError('No Supertext API key configured. Set SUPERTEXT_API_KEY on the server. Generate a key at https://www.supertext.com/en/integrations/api (requires the Admin role in your Supertext account).', 503);
     }
     return new SupertextClient({ apiKey, endpoint, pollIntervalMs, pollTimeoutMs });
   };

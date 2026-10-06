@@ -6,6 +6,9 @@ import { errorMessage, type PluginStatus, type StrapiLocale } from '../api';
 import { PLUGIN_ID } from '../pluginId';
 import { getTranslation } from '../utils/getTranslation';
 
+const SIGNUP_URL = 'https://www.supertext.com/person/en/account/signin';
+const API_KEY_URL = 'https://www.supertext.com/en/integrations/api';
+
 /**
  * Read-only overview: whether an API key is set, which endpoint is used and how
  * each Strapi locale maps to Supertext. Configuration lives in config/plugins.
@@ -68,6 +71,27 @@ const Settings = () => {
                   {status.configured
                     ? t('settings.key.set', 'API key is set.')
                     : t('settings.key.missing', 'No API key. Set SUPERTEXT_API_KEY on the server and restart Strapi.')}
+                </Typography>
+                <Typography variant="pi" textColor="neutral600">
+                  {formatMessage(
+                    {
+                      id: getTranslation('settings.key.help'),
+                      defaultMessage:
+                        'No Supertext account yet? <signup>Create one at supertext.com</signup>. Generate your API key at <key>supertext.com → Integrations → API</key> (requires the Admin role).',
+                    },
+                    {
+                      signup: (chunks: React.ReactNode) => (
+                        <a href={SIGNUP_URL} target="_blank" rel="noopener noreferrer">
+                          {chunks}
+                        </a>
+                      ),
+                      key: (chunks: React.ReactNode) => (
+                        <a href={API_KEY_URL} target="_blank" rel="noopener noreferrer">
+                          {chunks}
+                        </a>
+                      ),
+                    }
+                  )}
                 </Typography>
                 <Typography variant="pi" textColor="neutral600">
                   {t('settings.endpoint', 'Endpoint: {endpoint}', { endpoint: status.endpoint })}

@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- The settings page, setup warnings and the *Authentication failed* error now link to Supertext account signup and API key generation (supertext.com → Integrations → API, requires the Admin role); same links in the README and installation guide.
 - Fix: translating into several languages at once no longer fails with *Too many requests*: requests that hit Supertext's per-second rate limit are retried automatically.
 - Fix: the API key now works whether it is entered with or without the `Supertext-Auth-Key ` prefix Supertext shows it with.
 - Docs: screenshots in the user and installation guides, regenerated with `npm run docs:screenshots`.

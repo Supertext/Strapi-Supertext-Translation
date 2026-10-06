@@ -19,6 +19,7 @@
   "settings.connection": "Verbindung",
   "settings.key.set": "API-Schlüssel ist hinterlegt.",
   "settings.key.missing": "Kein API-Schlüssel. SUPERTEXT_API_KEY auf dem Server setzen und Strapi neu starten.",
+  "settings.key.help": "Noch kein Supertext-Konto? <signup>Jetzt auf supertext.com erstellen</signup>. Den API-Schlüssel unter <key>supertext.com → Integrationen → API</key> generieren (erfordert die Rolle Admin).",
   "settings.endpoint": "Endpunkt: {endpoint}",
   "settings.languages": "Sprachen",
   "settings.col.locale": "Strapi-Sprache",

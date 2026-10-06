@@ -10,12 +10,19 @@ For administrators setting up the plugin in a Strapi project.
 | Node.js | 20 or newer (22 recommended) |
 | Database | Any database Strapi supports (tested with SQLite; the demo runs on PostgreSQL) |
 | Strapi i18n | Enabled for every content type you want to translate (*Content-Type Builder → Advanced settings → Internationalization*), with the target languages added under *Settings → Internationalization* |
-| Supertext | An account with an API key (supertext.com → Integrations → API) |
+| Supertext | An account with an API key — see [Get a Supertext account and API key](#get-a-supertext-account-and-api-key) |
 | Network | The Strapi server must reach `https://api.supertext.com` over HTTPS |
 
 The languages Supertext translates into are Strapi's own locales:
 
 ![Settings → Internationalization with English as default and German, French and Italian (Switzerland)](images/locales.png)
+
+### Get a Supertext account and API key
+
+1. **Account:** no Supertext account yet? [Log in or create a Supertext account](https://www.supertext.com/person/en/account/signin) with your email address.
+2. **API key:** generate the AI API key at [supertext.com → Integrations → API](https://www.supertext.com/en/integrations/api). This page requires the **Admin** role in your Supertext account; if you don't have it, ask an admin of your Supertext account to generate the key.
+
+The plugin's settings page (*Settings → Supertext → Translation*) shows the same two links.
 
 ## 1. Install the package
 
@@ -106,8 +113,8 @@ Remove the `supertext` block from `config/plugins`, run `npm uninstall strapi-pl
 | Message | Cause / fix |
 | --- | --- |
 | *Too many requests to Supertext* | The API's per-second limit was still exceeded after 4 automatic retries. Wait a moment and translate again. |
-| *Supertext is not configured yet* / *No API key* | Set `SUPERTEXT_API_KEY` (or `config.apiKey`) and restart Strapi. |
-| *Authentication failed* | The key is wrong or revoked. |
+| *Supertext is not configured yet* / *No API key* | Set `SUPERTEXT_API_KEY` (or `config.apiKey`) and restart Strapi. No key yet? See [Get a Supertext account and API key](#get-a-supertext-account-and-api-key). |
+| *Authentication failed* | The key is wrong or revoked. Generate a new one at [supertext.com → Integrations → API](https://www.supertext.com/en/integrations/api) (requires the Admin role). |
 | *This content type is not localized* | Enable internationalization for the content type in the Content-Type Builder. |
 | *not enabled for this content type* | The type isn't in `contentTypes`. |
 | *No … version of this entry found. Save it first.* | The entry hasn't been saved in the source locale yet. |

@@ -166,7 +166,7 @@ export class SupertextClient {
     const status = response.status;
     let message =
       status === 401 || status === 403
-        ? 'Authentication failed. Please check the Supertext API key.'
+        ? 'Authentication failed. Please check the Supertext API key (generate one at https://www.supertext.com/en/integrations/api; requires the Admin role).'
         : status === 404
           ? 'The requested Supertext resource was not found.'
           : status === 413
