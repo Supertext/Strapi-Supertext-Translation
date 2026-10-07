@@ -76,7 +76,7 @@ All routes require an authenticated admin (`admin::isAuthenticatedAdmin`).
 
 | Route | Purpose |
 | --- | --- |
-| `GET /supertext/status` | `{ configured, endpoint, locales, contentTypes }` (never the key) |
+| `GET /supertext/status` | `{ configured, endpoint, locales, contentTypes, version }` (never the key; `version` is read from the plugin's `package.json` at runtime) |
 | `POST /supertext/test-connection` | Validates the key (`GET features`, no cost) |
 | `GET /supertext/locales?model=&documentId=` | Locales that exist for a document |
 | `POST /supertext/translate` | See above |
@@ -129,7 +129,7 @@ cd .. && npx playwright install chromium   # once
 npm run docs:screenshots
 ```
 
-Start from an empty demo database (`rm -rf demo/.tmp`) so the first translation shows as *created*. The script logs in with `DEMO_ADMIN_EMAIL`/`DEMO_ADMIN_PASSWORD` (the defaults above are local-only), captures the edit view, the panel before/after translating, the German result, the overwrite warning, the settings page and the locales page, and shows the live endpoint on the settings screenshot instead of the local stand-in's address.
+Other ports: `MOCK_PORT` for the stand-in, `PORT` for Strapi and `STRAPI_URL` (e.g. `http://127.0.0.1:20601`) for the script. Start from an empty demo database (`rm -rf demo/.tmp`) so the first translation shows as *created*. The script logs in with `DEMO_ADMIN_EMAIL`/`DEMO_ADMIN_PASSWORD` (the defaults above are local-only), captures the edit view, the panel before/after translating, the German result, the overwrite warning, the settings page and the locales page, and shows the live endpoint on the settings screenshot instead of the local stand-in's address.
 
 ## Demo deployment (Railway)
 

@@ -2,6 +2,7 @@ import type { Core } from '@strapi/strapi';
 import type { PluginConfig } from '../config';
 import { MAX_DOCUMENT_CHARACTERS, SupertextClient, SupertextError } from '../supertext/client';
 import { buildDocument, parseDocument, type Segment } from '../supertext/html';
+import { pluginVersion } from '../version';
 import { extract, populateFor, type Attributes, type Job, type SchemaLookup } from './extract';
 
 export interface TranslateRequest {
@@ -100,7 +101,7 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
   return {
     status() {
       const { apiKey, endpoint, locales, contentTypes } = config();
-      return { configured: Boolean(apiKey), endpoint, locales, contentTypes };
+      return { configured: Boolean(apiKey), endpoint, locales, contentTypes, version: pluginVersion() };
     },
 
     async testConnection() {

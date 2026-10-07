@@ -8,6 +8,8 @@ import { getTranslation } from '../utils/getTranslation';
 
 const SIGNUP_URL = 'https://www.supertext.com/person/en/account/signin';
 const API_KEY_URL = 'https://www.supertext.com/en/integrations/api';
+const RELEASES_URL = 'https://github.com/Supertext/Strapi-Supertext-Translation/releases/tag/';
+const RELEASE_VERSION = /^\d+\.\d+\.\d+$/;
 
 /**
  * Read-only overview: whether an API key is set, which endpoint is used and how
@@ -96,6 +98,22 @@ const Settings = () => {
                 <Typography variant="pi" textColor="neutral600">
                   {t('settings.endpoint', 'Endpoint: {endpoint}', { endpoint: status.endpoint })}
                 </Typography>
+                {status.version && (
+                  <Typography variant="pi" textColor="neutral600">
+                    {formatMessage(
+                      { id: getTranslation('settings.version'), defaultMessage: 'Plugin version: {version}' },
+                      {
+                        version: RELEASE_VERSION.test(status.version) ? (
+                          <a href={`${RELEASES_URL}v${status.version}`} target="_blank" rel="noopener noreferrer">
+                            {status.version}
+                          </a>
+                        ) : (
+                          status.version
+                        ),
+                      }
+                    )}
+                  </Typography>
+                )}
               </Flex>
             </Box>
 

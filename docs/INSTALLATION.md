@@ -76,9 +76,9 @@ npm run build
 npm run start      # or: npm run develop
 ```
 
-A new **Supertext translation** panel now appears in the right-hand column of every localized entry in the Content Manager, and **Settings → Supertext → Translation** shows the configuration.
+A new **Supertext translation** panel now appears in the right-hand column of every localized entry in the Content Manager, and **Settings → Supertext → Translation** shows the configuration and the installed plugin version (for example *Plugin version: 0.1.0*, linked to that release's notes on GitHub). Mention the version when you contact support.
 
-![Settings → Supertext → Translation: connection status, links to create a Supertext account and generate an API key, the endpoint, and how each Strapi locale is sent to Supertext](images/settings.png)
+![Settings → Supertext → Translation: connection status, links to create a Supertext account and generate an API key, the endpoint, the plugin version, and how each Strapi locale is sent to Supertext](images/settings.png)
 
 ## 4. Check it works
 
@@ -102,7 +102,7 @@ The plugin follows the Content Manager's permissions: a user can translate an en
 
 ## Updating
 
-Install the newer tarball (or `npm update strapi-plugin-supertext-translation` once on npm), then `npm run build` and restart.
+Install the newer tarball (or `npm update strapi-plugin-supertext-translation` once on npm), then `npm run build` and restart. The version on the settings page shows which one is running.
 
 ## Uninstalling
 

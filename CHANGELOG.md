@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The settings page shows the installed plugin version, linked to its release notes on GitHub.
+
 ## 0.1.0 — 2026-10-07
 
 - First version for Strapi 5: **Supertext translation** panel in the Content Manager's edit view to translate the saved entry into one or more locales.

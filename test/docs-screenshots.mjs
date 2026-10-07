@@ -4,7 +4,7 @@
 import { chromium } from 'playwright';
 const EMAIL = process.env.DEMO_ADMIN_EMAIL || 'anna.muster@example.com';
 const PASSWORD = process.env.DEMO_ADMIN_PASSWORD || 'Docs12345';
-const B = 'http://127.0.0.1:1337';
+const B = process.env.STRAPI_URL || 'http://127.0.0.1:1337';
 const OUT = new URL('../docs/images', import.meta.url).pathname;
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1400, height: 940 }, deviceScaleFactor: 1 });

@@ -10,6 +10,8 @@ export interface PluginStatus {
   endpoint: string;
   locales: Record<string, { code?: string; politeness?: string }>;
   contentTypes: string[];
+  /** Plugin version from package.json, null if the server couldn't read it. */
+  version: string | null;
 }
 
 export interface StrapiLocale {

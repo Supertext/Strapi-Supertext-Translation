@@ -21,6 +21,7 @@
   "settings.key.missing": "No API key. Set SUPERTEXT_API_KEY on the server and restart Strapi.",
   "settings.key.help": "No Supertext account yet? <signup>Create one at supertext.com</signup>. Generate your API key at <key>supertext.com → Integrations → API</key> (requires the Admin role).",
   "settings.endpoint": "Endpoint: {endpoint}",
+  "settings.version": "Plugin version: {version}",
   "settings.languages": "Languages",
   "settings.col.locale": "Strapi locale",
   "settings.col.code": "Sent to Supertext as",

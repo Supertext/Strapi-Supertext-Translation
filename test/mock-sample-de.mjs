@@ -43,4 +43,4 @@ http.createServer(async (req, res) => {
   const walk = (n) => { if (n instanceof TextNode) { if (n.rawText.trim()) n.rawText = tr(n.text).replace(/&/g,'&amp;').replace(/</g,'&lt;'); } else n.childNodes?.forEach(walk); };
   // plain-text segments arrive with <br>; translate each text node
   walk(root); send(200, root.toString(), 'text/html');
-}).listen(8765, () => console.log('mock-de on 8765'));
+}).listen(Number(process.env.MOCK_PORT || 8765), function () { console.log(`mock-de on ${this.address().port}`); });
