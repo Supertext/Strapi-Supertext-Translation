@@ -96,6 +96,21 @@ A new **Supertext translation** panel now appears in the right-hand column of ev
 | `pollIntervalMs` | `2000` | Time between status checks |
 | `pollTimeoutMs` | `180000` | Maximum wait per translation |
 
+## Interface languages
+
+The plugin's panel, settings page and messages are available in English, German, French and Italian and follow each user's Strapi interface language. Strapi only offers the interface languages the project lists in `src/admin/app.ts` (or `app.js`); English is always available:
+
+```js
+// src/admin/app.js
+export default {
+  config: {
+    locales: ['de', 'fr', 'it'],
+  },
+};
+```
+
+Rebuild the admin panel (`npm run build`), then each user picks a language under their profile (top left → *Profile* → *Interface language*). The interface language is independent of the content locales under *Settings → Internationalization*. Messages from the server that reach other API clients stay in English.
+
 ## Permissions
 
 The plugin follows the Content Manager's permissions: a user can translate an entry only if they may **read** its source locale and **create or update** each target locale. Use *Settings → Roles* to limit editors to certain locales as usual.

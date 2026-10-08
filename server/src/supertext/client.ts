@@ -43,10 +43,17 @@ export interface TranslateOptions {
   politeness?: Politeness;
 }
 
+/**
+ * `code` and `values` let the admin panel show the message in the user's
+ * interface language (keys `error.<code>` in admin/src/translations); `message`
+ * is the English text for logs and API clients.
+ */
 export class SupertextError extends Error {
   constructor(
     message: string,
-    public readonly status?: number
+    public readonly status?: number,
+    public readonly code?: string,
+    public readonly values: Record<string, string | number> = {}
   ) {
     super(message);
     this.name = 'SupertextError';
@@ -62,7 +69,7 @@ export class SupertextClient {
 
   constructor(private readonly options: ClientOptions) {
     if (!options.apiKey) {
-      throw new SupertextError('No Supertext API key configured.');
+      throw new SupertextError('No Supertext API key configured.', undefined, 'notConfigured');
     }
     this.endpoint = (options.endpoint || LIVE_ENDPOINT).replace(/\/+$/, '') + '/';
     this.pollIntervalMs = Math.max(250, options.pollIntervalMs ?? 2000);
@@ -104,7 +111,7 @@ export class SupertextClient {
     const response = await this.request('POST', 'translate/ai/file', form);
     const data = (await response.json().catch(() => ({}))) as { file_id?: string };
     if (!data.file_id) {
-      throw new SupertextError('Supertext did not return a file id.');
+      throw new SupertextError('Supertext did not return a file id.', undefined, 'noFileId');
     }
     return data.file_id;
   }
@@ -118,22 +125,22 @@ export class SupertextClient {
         case 'done':
           return;
         case 'error':
-          throw new SupertextError('Supertext failed to translate the document.');
+          throw new SupertextError('Supertext failed to translate the document.', undefined, 'failed');
         case 'limit_exceeded':
-          throw new SupertextError('Your Supertext translation limit is exceeded.');
+          throw new SupertextError('Your Supertext translation limit is exceeded.', undefined, 'limitExceeded');
         case 'deleted':
-          throw new SupertextError('The Supertext file was deleted before it could be downloaded.');
+          throw new SupertextError('The Supertext file was deleted before it could be downloaded.', undefined, 'fileDeleted');
       }
       await new Promise((resolve) => setTimeout(resolve, this.pollIntervalMs));
     } while (Date.now() < deadline);
-    throw new SupertextError('Timed out waiting for the Supertext translation.');
+    throw new SupertextError('Timed out waiting for the Supertext translation.', undefined, 'timeout');
   }
 
   private async download(fileId: string): Promise<string> {
     const response = await this.request('GET', `translate/ai/file/${encodeURIComponent(fileId)}/translation`);
     const body = await response.text();
     if (!body.trim()) {
-      throw new SupertextError('The translated document was empty.');
+      throw new SupertextError('The translated document was empty.', undefined, 'emptyTranslation');
     }
     return body;
   }
@@ -152,7 +159,8 @@ export class SupertextClient {
           signal: AbortSignal.timeout(30_000),
         });
       } catch (error) {
-        throw new SupertextError(`Could not reach Supertext: ${(error as Error).message}`);
+        const detail = (error as Error).message;
+        throw new SupertextError(`Could not reach Supertext: ${detail}`, undefined, 'unreachable', { detail });
       }
       if (response.status !== 429 || attempt >= RATE_LIMIT_RETRIES) {
         break;
@@ -164,23 +172,24 @@ export class SupertextClient {
       return response;
     }
     const status = response.status;
-    let message =
+    const [code, english] =
       status === 401 || status === 403
-        ? 'Authentication failed. Please check the Supertext API key (generate one at https://www.supertext.com/en/integrations/api; requires the Admin role).'
+        ? ['authFailed', 'Authentication failed. Please check the Supertext API key. No Supertext account yet? Create one at https://www.supertext.com/person/en/account/signin. Generate your API key at https://www.supertext.com/en/integrations/api (supertext.com → Integrations → API; requires the Admin role).']
         : status === 404
-          ? 'The requested Supertext resource was not found.'
+          ? ['notFound', 'The requested Supertext resource was not found.']
           : status === 413
-            ? 'The content is too large for Supertext to translate in one go.'
+            ? ['tooLarge', 'The content is too large for Supertext to translate in one go.']
             : status === 429
-              ? 'Too many requests to Supertext. Please try again shortly.'
+              ? ['rateLimited', 'Too many requests to Supertext. Please try again shortly.']
               : status >= 500
-                ? 'The Supertext service is currently unavailable.'
-                : `Supertext answered with HTTP ${status}.`;
-    const detail = (await response.text().catch(() => '')).replace(/<[^>]*>/g, '').trim();
+                ? ['unavailable', 'The Supertext service is currently unavailable.']
+                : ['http', `Supertext answered with HTTP ${status}.`];
+    const detail = (await response.text().catch(() => '')).replace(/<[^>]*>/g, '').trim().slice(0, 200);
+    const values: Record<string, string | number> = code === 'http' ? { status } : {};
     if (detail) {
-      message += ` (${detail.slice(0, 200)})`;
+      values.detail = detail;
     }
-    throw new SupertextError(message, status);
+    throw new SupertextError(detail ? `${english} (${detail})` : english, status, code, values);
   }
 }
 

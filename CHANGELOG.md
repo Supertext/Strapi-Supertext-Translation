@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added: French and Italian interface (and German where it was missing): the panel, settings page and error messages follow the user's Strapi interface language. The demo offers German, French and Italian as interface languages.
+- The *No API key* and *Authentication failed* messages now link to both Supertext account signup and API key generation.
 - The settings page shows the installed plugin version, linked to its release notes on GitHub.
 
 ## 0.1.0 — 2026-10-07

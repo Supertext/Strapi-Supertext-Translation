@@ -4,6 +4,8 @@ For editors. Once an administrator has installed the plugin (see [INSTALLATION.m
 
 *Screenshots are from the Strapi 5 demo in this repository.*
 
+The Supertext panel, settings page and messages follow your Strapi interface language (English, German, French or Italian; change it under *Profile → Interface language*).
+
 ## Translate an entry
 
 1. Open the entry in the **Content Manager** and make sure the language selector at the top right shows the language you want to translate **from** (usually your default language).

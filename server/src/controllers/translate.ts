@@ -1,5 +1,6 @@
 import type { Core } from '@strapi/strapi';
 import { TranslationError, type TranslatorService } from '../services/translator';
+import { SupertextError } from '../supertext/client';
 
 type Ctx = {
   request: { body?: Record<string, unknown> };
@@ -7,8 +8,8 @@ type Ctx = {
   state: { userAbility: unknown };
   body: unknown;
   status: number;
-  forbidden(message?: string): void;
-  badRequest(message?: string): void;
+  forbidden(message?: string, details?: unknown): void;
+  badRequest(message?: string, details?: unknown): void;
 };
 
 const controller = ({ strapi }: { strapi: Core.Strapi }) => {
@@ -18,9 +19,9 @@ const controller = ({ strapi }: { strapi: Core.Strapi }) => {
     strapi.plugin('content-manager').service('permission-checker').create({ userAbility: ctx.state.userAbility, model });
 
   const fail = (ctx: Ctx, error: unknown) => {
-    if (error instanceof TranslationError) {
-      ctx.status = error.status;
-      ctx.body = { error: { message: error.message } };
+    if (error instanceof TranslationError || error instanceof SupertextError) {
+      ctx.status = error instanceof TranslationError ? error.status : 502;
+      ctx.body = { error: { message: error.message, details: { code: error.code, values: error.values } } };
       return;
     }
     strapi.log.error(`[supertext] ${(error as Error).stack ?? error}`);
@@ -67,13 +68,19 @@ const controller = ({ strapi }: { strapi: Core.Strapi }) => {
       // Same rules as the Content Manager: read the source locale, write each target locale.
       const permissions = checker(ctx, model);
       if (permissions.cannot.read({ locale: sourceLocale })) {
-        return ctx.forbidden(`You may not read the ${sourceLocale} version.`);
+        return ctx.forbidden(`You may not read the ${sourceLocale} version.`, {
+          code: 'forbiddenRead',
+          values: { locale: sourceLocale },
+        });
       }
       const denied = targetLocales.filter(
         (locale: string) => permissions.cannot.update({ locale }) && permissions.cannot.create({ locale })
       );
       if (denied.length) {
-        return ctx.forbidden(`You may not edit these locales: ${denied.join(', ')}`);
+        return ctx.forbidden(`You may not edit these locales: ${denied.join(', ')}`, {
+          code: 'forbiddenEdit',
+          values: { locales: denied.join(', ') },
+        });
       }
 
       try {

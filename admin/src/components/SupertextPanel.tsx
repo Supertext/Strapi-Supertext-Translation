@@ -2,8 +2,9 @@ import * as React from 'react';
 import { useIntl } from 'react-intl';
 import { Box, Button, Checkbox, Flex, Typography } from '@strapi/design-system';
 import { useFetchClient, useNotification, useQueryParams } from '@strapi/strapi/admin';
-import { errorMessage, type LocaleResult, type PluginStatus, type StrapiLocale } from '../api';
+import { apiError, type LocaleResult, type PluginStatus, type StrapiLocale } from '../api';
 import { PLUGIN_ID } from '../pluginId';
+import { errorText } from '../utils/errorText';
 import { getTranslation } from '../utils/getTranslation';
 
 interface PanelProps {
@@ -86,6 +87,8 @@ const PanelContent = ({ model, documentId, sourceLocale, existing }: PanelConten
   const targets = locales.filter((locale) => locale.code !== sourceLocale);
   const exists = (code: string) => existing.includes(code) || created.includes(code);
   const name = (code: string) => locales.find((l) => l.code === code)?.name ?? code;
+  const resultError = (result: LocaleResult) =>
+    errorText(formatMessage, { message: result.error ?? '', code: result.code, values: result.values });
 
   if (status && !status.configured) {
     return (
@@ -139,11 +142,11 @@ const PanelContent = ({ model, documentId, sourceLocale, existing }: PanelConten
       if (failed.length) {
         toggleNotification({
           type: 'danger',
-          message: failed.map((r) => `${name(r.locale)}: ${r.error}`).join(' · '),
+          message: failed.map((r) => `${name(r.locale)}: ${resultError(r)}`).join(' · '),
         });
       }
     } catch (error) {
-      toggleNotification({ type: 'danger', message: errorMessage(error) });
+      toggleNotification({ type: 'danger', message: errorText(formatMessage, apiError(error)) });
     } finally {
       setBusy(false);
     }
@@ -208,7 +211,7 @@ const PanelContent = ({ model, documentId, sourceLocale, existing }: PanelConten
               <Typography variant="pi" textColor={result.status === 'error' ? 'danger600' : 'success600'}>
                 {name(result.locale)}:{' '}
                 {result.status === 'error'
-                  ? result.error
+                  ? resultError(result)
                   : formatMessage(
                       { id: getTranslation(`panel.result.${result.status}`), defaultMessage: result.status },
                       { fields: result.fields }

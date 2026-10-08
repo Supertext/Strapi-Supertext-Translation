@@ -9,7 +9,8 @@ admin/src/                 Admin panel (React)
   index.ts                 Registers the edit-view side panel and the settings page
   components/SupertextPanel.tsx
   pages/Settings.tsx
-  translations/{en,de}.json
+  translations/{en,de,fr,it}.json  Admin strings (react-intl), incl. error.<code> messages
+  utils/errorText.ts       Server error code → message in the user's language
 server/src/                Server (Koa) part
   config/index.ts          Defaults + validation of plugin config
   routes/admin/index.ts    /supertext/* admin routes
@@ -103,6 +104,12 @@ The mock "translates" by prefixing every text node with `[<target>] `, which mak
 
 Why a tarball instead of `npm link`? Linking makes the plugin load its own copy of React and the design system, which breaks the admin panel. `npm install ./plugin.tgz` puts the plugin inside `demo/node_modules` so it shares the demo's dependencies. Install the tarball explicitly (as `demo:install` does): with an unchanged version number, a plain `npm install` keeps the old copy.
 
+## Interface strings
+
+The admin panel's strings live in `admin/src/translations/{en,de,fr,it}.json` (react-intl messages, loaded by `registerTrads` in `admin/src/index.ts` and prefixed with the plugin id). English is the source and fallback. New or changed strings need all four languages in the same commit: formal address (Sie, vous, Lei), Strapi's own terms in each language (de *Sprache*/*Eintrag*, fr *locale*/*entrée*, it *lingua*/*elemento*), and "Supertext", `{placeholders}`, `<tags>` and URLs unchanged. Use typographic apostrophes (’) in French and Italian: a straight `'` before `{` or `<` is an ICU quote.
+
+Server errors are English (`message`, for logs and API clients) and carry a `code` and `values` (`SupertextError`, `TranslationError`, the controller's `forbidden` details and the per-locale results). The admin panel shows `error.<code>` from the translation files via `utils/errorText.ts`, falling back to the English message. A new server error gets a code and an `error.<code>` entry; `test/translations.test.ts` checks both.
+
 ## Tests
 
 | File | Covers |
@@ -111,6 +118,7 @@ Why a tarball instead of `npm link`? Linking makes the plugin load its own copy 
 | `test/blocks.test.ts` | Blocks inline ↔ HTML (marks, links, line breaks) |
 | `test/extract.test.ts` | Field selection, copying, ids, dynamic zones, populate tree |
 | `test/client.test.ts` | API call sequence, form fields, errors, cleanup |
+| `test/translations.test.ts` | All four admin languages have the same keys, placeholders, tags and URLs; every key and server error code has an English message |
 
 CI (`.github/workflows/ci.yml`) runs type checks, tests and the build on Node 20 and 22, then builds the demo admin panel with the packed plugin.
 

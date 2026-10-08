@@ -44,7 +44,11 @@ describe('SupertextClient', () => {
     const { fn, calls } = fakeFetch(() => new Response('{"detail":"bad key"}', { status: 401 }));
     const client = new SupertextClient({ apiKey: 'wrong', fetch: fn });
     await expect(client.translateDocument('<p>x</p>', { targetLanguage: 'fr' })).rejects.toThrow(/Authentication failed.*bad key/);
-    expect(calls).toHaveLength(1);
+    await expect(client.validate()).rejects.toMatchObject({
+      code: 'authFailed',
+      values: { detail: '{"detail":"bad key"}' },
+    });
+    expect(calls).toHaveLength(2);
   });
 
   it('stops on limit_exceeded and cleans up', async () => {

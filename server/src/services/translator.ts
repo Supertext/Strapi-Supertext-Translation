@@ -17,12 +17,18 @@ export interface LocaleResult {
   status: 'created' | 'updated' | 'error';
   fields?: number;
   error?: string;
+  /** Message key for the admin panel (`error.<code>`), with its placeholder values. */
+  code?: string;
+  values?: Record<string, string | number>;
 }
 
+/** See SupertextError: `code`/`values` are translated in the admin panel, `message` is English. */
 export class TranslationError extends Error {
   constructor(
     message: string,
-    public readonly status = 400
+    public readonly status = 400,
+    public readonly code?: string,
+    public readonly values: Record<string, string | number> = {}
   ) {
     super(message);
   }
@@ -38,7 +44,11 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
   const client = () => {
     const { apiKey, endpoint, pollIntervalMs, pollTimeoutMs } = config();
     if (!apiKey) {
-      throw new TranslationError('No Supertext API key configured. Set SUPERTEXT_API_KEY on the server. Generate a key at https://www.supertext.com/en/integrations/api (requires the Admin role in your Supertext account).', 503);
+      throw new TranslationError(
+        'No Supertext API key configured. Set SUPERTEXT_API_KEY on the server. No Supertext account yet? Create one at https://www.supertext.com/person/en/account/signin. Generate your API key at https://www.supertext.com/en/integrations/api (supertext.com → Integrations → API; requires the Admin role).',
+        503,
+        'notConfigured'
+      );
     }
     return new SupertextClient({ apiKey, endpoint, pollIntervalMs, pollTimeoutMs });
   };
@@ -48,14 +58,14 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
       | { attributes: Attributes; pluginOptions?: { i18n?: { localized?: boolean } } }
       | undefined;
     if (!model) {
-      throw new TranslationError(`Unknown content type ${uid}.`, 404);
+      throw new TranslationError(`Unknown content type ${uid}.`, 404, 'unknownContentType', { uid });
     }
     if (!model.pluginOptions?.i18n?.localized) {
-      throw new TranslationError('This content type is not localized. Enable internationalization for it first.');
+      throw new TranslationError('This content type is not localized. Enable internationalization for it first.', 400, 'notLocalized');
     }
     const allowed = config().contentTypes;
     if (allowed.length && !allowed.includes(uid)) {
-      throw new TranslationError('Supertext translation is not enabled for this content type.', 403);
+      throw new TranslationError('Supertext translation is not enabled for this content type.', 403, 'notEnabled');
     }
     return model;
   };
@@ -122,7 +132,7 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
       const model = contentType(uid);
       const targets = [...new Set(request.targetLocales)].filter((locale) => locale && locale !== sourceLocale);
       if (!targets.length) {
-        throw new TranslationError('Choose at least one target locale other than the source locale.');
+        throw new TranslationError('Choose at least one target locale other than the source locale.', 400, 'noTargets');
       }
       const api = client();
       const documents = strapi.documents(uid as never);
@@ -134,7 +144,9 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
         populate: populateFor(model.attributes, schema) as never,
       } as never);
       if (!source) {
-        throw new TranslationError(`No ${sourceLocale} version of this entry found. Save it first.`, 404);
+        throw new TranslationError(`No ${sourceLocale} version of this entry found. Save it first.`, 404, 'sourceMissing', {
+          locale: sourceLocale,
+        });
       }
       const existing = await this.existingLocales(uid, documentId);
 
@@ -164,12 +176,20 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
           await documents.update({ documentId, locale, data } as never);
           results.push({ locale, status: exists ? 'updated' : 'created', fields });
         } catch (error) {
-          const message =
-            error instanceof SupertextError || error instanceof TranslationError
-              ? error.message
-              : `Could not save the translation: ${(error as Error).message}`;
-          strapi.log.error(`[supertext] ${uid} ${documentId} → ${locale}: ${(error as Error).message}`);
-          results.push({ locale, status: 'error', error: message });
+          const known = error instanceof SupertextError || error instanceof TranslationError;
+          const detail = (error as Error).message;
+          strapi.log.error(`[supertext] ${uid} ${documentId} → ${locale}: ${detail}`);
+          results.push(
+            known
+              ? { locale, status: 'error', error: error.message, code: error.code, values: error.values }
+              : {
+                  locale,
+                  status: 'error',
+                  error: `Could not save the translation: ${detail}`,
+                  code: 'saveFailed',
+                  values: { detail },
+                }
+          );
         }
       }
       return results;

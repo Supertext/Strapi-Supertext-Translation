@@ -2,8 +2,9 @@ import * as React from 'react';
 import { useIntl } from 'react-intl';
 import { Box, Button, Flex, Table, Tbody, Td, Th, Thead, Tr, Typography } from '@strapi/design-system';
 import { Layouts, Page, useFetchClient, useNotification } from '@strapi/strapi/admin';
-import { errorMessage, type PluginStatus, type StrapiLocale } from '../api';
+import { apiError, type PluginStatus, type StrapiLocale } from '../api';
 import { PLUGIN_ID } from '../pluginId';
+import { errorText } from '../utils/errorText';
 import { getTranslation } from '../utils/getTranslation';
 
 const SIGNUP_URL = 'https://www.supertext.com/person/en/account/signin';
@@ -36,7 +37,7 @@ const Settings = () => {
       await post(`/${PLUGIN_ID}/test-connection`);
       toggleNotification({ type: 'success', message: t('settings.test.ok', 'Connected to Supertext.') });
     } catch (error) {
-      toggleNotification({ type: 'danger', message: errorMessage(error) });
+      toggleNotification({ type: 'danger', message: errorText(formatMessage, apiError(error)) });
     } finally {
       setTesting(false);
     }
