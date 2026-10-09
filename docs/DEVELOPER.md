@@ -156,6 +156,12 @@ Accounts are only created if they don't exist yet; an existing account's passwor
 
 On every start the demo also ensures the locales de-CH, fr-CH and it-CH, gives Strapi's Editor role access to all locales (Strapi doesn't grant locales added later to existing roles), and creates one English sample article if none exists (`demo/src/index.js`).
 
+## Dependency updates
+
+Dependabot (`.github/dependabot.yml`) opens weekly pull requests: minor and patch updates grouped into one, GitHub Actions in another, each major update on its own. Merge one when CI is green and it doesn't change what the plugin supports.
+
+Some major versions are ignored on purpose: TypeScript (7.x is the native compiler, which the type-checking and build tools here don't support yet) and `@types/node` (the types must match the oldest Node version the plugin supports, not the newest). In Strapi also React, React DOM and their types, react-router-dom and react-intl: Strapi 5's admin provides React 18, react-router-dom 6 and react-intl 6 itself, so the plugin must match them. Lift an ignore rule when the plugin moves to the new version.
+
 ## Releasing
 
 Releases are published by `.github/workflows/release.yml` when the version is officially bumped; nobody tags or creates releases by hand.
