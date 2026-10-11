@@ -17,6 +17,13 @@ The languages Supertext translates into are Strapi's own locales:
 
 ![Settings → Internationalization with English as default and German, French and Italian (Switzerland)](images/locales.png)
 
+Strapi locale codes become Supertext codes automatically:
+
+- **Target languages** are always sent with a region, because Supertext rejects bare targets: a locale with a region keeps it (`de-CH`; `fr_ch` → `fr-CH`); a bare one gets the usual default (`de` → `de-DE`, `fr` → `fr-FR`, `it` → `it-IT`, `en` → `en-US`, `pt` → `pt-PT`, `zh` → `zh-CN`, …).
+- **The source language** is sent without region (`en-US` → `en`), because Supertext rejects regional source codes.
+
+For another region, set the locale's `code` (see [All settings](#all-settings)); it wins over the default (for the source, its language is used). The settings page shows the code each locale is sent as.
+
 ### Get a Supertext account and API key
 
 1. **Account:** no Supertext account yet? [Log in or create a Supertext account](https://www.supertext.com/person/en/account/signin) with your email address.
@@ -54,7 +61,7 @@ module.exports = ({ env }) => ({
       locales: {
         'de-CH': { politeness: 'more' },   // formal: Sie
         'fr-CH': { politeness: 'more' },   // formal: vous
-        'pt': { code: 'pt-BR' },           // send Strapi's "pt" to Supertext as pt-BR
+        'pt': { code: 'pt-BR' },           // send Strapi's "pt" as pt-BR instead of the default pt-PT
       },
     },
   },
@@ -91,7 +98,7 @@ A new **Supertext translation** panel now appears in the right-hand column of ev
 | --- | --- | --- |
 | `apiKey` | `SUPERTEXT_API_KEY` env var | Supertext API key, with or without the `Supertext-Auth-Key ` prefix |
 | `endpoint` | `SUPERTEXT_API_ENDPOINT` env var, else `https://api.supertext.com/v1/` | API base URL (`https://api.staging.supertext.com/v1/` for staging) |
-| `locales` | `{}` | Per Strapi locale: `code` (Supertext target code, defaults to the Strapi locale code) and `politeness` (`more` = formal, `less` = informal, `default`) |
+| `locales` | `{}` | Per Strapi locale: `code` (Supertext code with region, e.g. `pt-BR`; defaults to the Strapi locale code, bare ones with a default region: `de` → `de-DE`) and `politeness` (`more` = formal, `less` = informal, `default`) |
 | `contentTypes` | `[]` (all localized types) | Allow-list of content-type UIDs, e.g. `['api::article.article']` |
 | `pollIntervalMs` | `2000` | Time between status checks |
 | `pollTimeoutMs` | `180000` | Maximum wait per translation |

@@ -53,9 +53,13 @@ http
       const form = await request.formData();
       const file = form.get('file');
       if (!file || file.type !== 'text/html') return send(res, 415, { detail: `FILETYPE_NOT_ALLOWED ${file?.type}` });
-      const id = randomBytes(6).toString('hex');
       const fields = Object.fromEntries([...form.entries()].filter(([k]) => k !== 'file'));
       console.log('   ', JSON.stringify(fields), `${(await file.text()).length} chars`);
+      // Like the real API: bare targets (`de`) and regional sources (`de-CH`) are rejected.
+      if (!String(fields.target_lang ?? '').includes('-') || String(fields.source_lang ?? '').includes('-')) {
+        return send(res, 400, { error_code: 'INVALID_LANGUAGE_PAIR', detail: 'INVALID_LANGUAGE_PAIR' });
+      }
+      const id = randomBytes(6).toString('hex');
       files.set(id, { html: await file.text(), lang: fields.target_lang });
       return send(res, 200, { file_id: id });
     }

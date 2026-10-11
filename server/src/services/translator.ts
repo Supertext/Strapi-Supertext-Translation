@@ -2,6 +2,7 @@ import type { Core } from '@strapi/strapi';
 import type { PluginConfig } from '../config';
 import { MAX_DOCUMENT_CHARACTERS, SupertextClient, SupertextError } from '../supertext/client';
 import { buildDocument, parseDocument, type Segment } from '../supertext/html';
+import { sourceCode, targetCode } from '../supertext/languages';
 import { pluginVersion } from '../version';
 import { extract, populateFor, type Attributes, type Job, type SchemaLookup } from './extract';
 
@@ -92,8 +93,8 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
     for (const chunk of chunks) {
       const segments: Segment[] = chunk.map((job) => job.segment);
       const translated = await api.translateDocument(buildDocument(segments), {
-        targetLanguage: options.code || targetLocale,
-        sourceLanguage: sourceLocale,
+        targetLanguage: targetCode(targetLocale, options.code),
+        sourceLanguage: sourceCode(sourceLocale, config().locales[sourceLocale]?.code),
         politeness: options.politeness ?? 'default',
       });
       const parsed = parseDocument(translated, segments);

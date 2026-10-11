@@ -62,7 +62,7 @@ Editor clicks "Translate with Supertext" (SupertextPanel)
 
 Shared with the WordPress and TYPO3 plugins:
 
-1. `POST {base}translate/ai/file` — multipart: `file` (part type exactly `text/html`, no charset, else 415), `target_lang` (BCP-47, e.g. `de-CH`), optional `source_lang` (primary subtag only, e.g. `en`), optional `politeness` (`more`/`less`) → `{ file_id }`
+1. `POST {base}translate/ai/file` — multipart: `file` (part type exactly `text/html`, no charset, else 415), `target_lang` (regional code, e.g. `de-CH`), optional `source_lang` (bare language, e.g. `en`; see *Language codes*), optional `politeness` (`more`/`less`) → `{ file_id }`
 2. `GET …/{file_id}/status` until `done` (`error`, `limit_exceeded`, `deleted` are terminal)
 3. `GET …/{file_id}/translation` → translated HTML
 4. `DELETE …/{file_id}` (files also expire after 24 h)
@@ -70,6 +70,17 @@ Shared with the WordPress and TYPO3 plugins:
 Header: `Authorization: Supertext-Auth-Key <key>`. The key may be configured with or without the `Supertext-Auth-Key ` prefix; the client strips it and always sends exactly one. The header name must be `Authorization` (the live API answers 403 to `Authentication`).
 
 **Rate limit:** the API limits requests per second per key (HTTP 429, `RATE_LIMIT_EXCEEDED`); translating into several languages at once hits it. The client retries a 429 up to 4 times, waiting for `Retry-After` if sent, otherwise 1, 2, 4 and 8 seconds (plus jitter), before reporting *Too many requests*. Each segment travels as `<div data-st-id="N">…</div>`; plain text is escaped with line breaks as `<br>`.
+
+### Language codes
+
+Supertext's rule (from testing the live API): **source = bare language** (`en`, `de`), **target = regional code** (`de-DE`, `fr-CH`, `en-US`). A regional source or a bare target is rejected with `INVALID_LANGUAGE_PAIR`. Translating within one language (source `en`, target `en-GB`) is allowed.
+
+`server/src/supertext/languages.ts` turns Strapi locale codes into Supertext codes (the settings page uses the same function for its *Sent to Supertext as* column):
+
+- `targetCode(locale, code)`: the `locales.<locale>.code` setting wins, else the locale. The code is normalized (`de_ch`/`de-ch` → `de-CH`; scripts and numeric regions keep their form: `zh-Hant`, `es-419`). A bare language gets its default region from `DEFAULT_REGIONS`: ar→ar-SA, bg→bg-BG, cs→cs-CZ, da→da-DK, de→de-DE, el→el-GR, en→en-US, es→es-ES, et→et-EE, fi→fi-FI, fr→fr-FR, hr→hr-HR, hu→hu-HU, it→it-IT, ja→ja-JP, ko→ko-KR, lt→lt-LT, lv→lv-LV, nb→nb-NO, nl→nl-NL, pl→pl-PL, pt→pt-PT, ro→ro-RO, ru→ru-RU, sk→sk-SK, sl→sl-SI, sr→sr-RS, sv→sv-SE, th→th-TH, tr→tr-TR, uk→uk-UA, vi→vi-VN, zh→zh-CN (same table as the other Supertext plugins). Unknown bare codes are sent unchanged, so Supertext's error names them.
+- `sourceCode(locale, code)`: the language of the source locale's `code` setting or of the locale (`en-US` → `en`).
+
+The mock API (`test/mock-supertext.mjs`) rejects bare targets and regional sources like the real API.
 
 ## Admin API
 

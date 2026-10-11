@@ -3,6 +3,7 @@ import { useIntl } from 'react-intl';
 import { Box, Button, Flex, Table, Tbody, Td, Th, Thead, Tr, Typography } from '@strapi/design-system';
 import { Layouts, Page, useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { apiError, type PluginStatus, type StrapiLocale } from '../api';
+import { targetCode } from '../../../server/src/supertext/languages';
 import { PLUGIN_ID } from '../pluginId';
 import { errorText } from '../utils/errorText';
 import { getTranslation } from '../utils/getTranslation';
@@ -137,7 +138,7 @@ const Settings = () => {
                       return (
                         <Tr key={locale.code}>
                           <Td><Typography>{locale.name}</Typography></Td>
-                          <Td><Typography>{options.code ?? locale.code}</Typography></Td>
+                          <Td><Typography>{targetCode(locale.code, options.code)}</Typography></Td>
                           <Td><Typography>{politeness(options.politeness)}</Typography></Td>
                         </Tr>
                       );
