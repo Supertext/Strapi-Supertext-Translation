@@ -3,10 +3,18 @@ import { SupertextClient } from '../server/src/supertext/client';
 
 type Call = { method: string; url: string; body?: FormData };
 
+type Init = RequestInit & { headers?: Record<string, string> };
+
 const fakeFetch = (handler: (call: Call) => Response) => {
-  const calls: Call[] = [];
-  const fn = (async (url: string, init: RequestInit) => {
-    const call = { method: init.method ?? 'GET', url, body: init.body as FormData };
+  const calls: (Call & { headers: Headers })[] = [];
+  const fn = (async (url: string, init: Init) => {
+    const headers = new Headers(init.headers);
+    // The SDK builds the multipart body itself; read it back as FormData.
+    const type = headers.get('content-type') ?? '';
+    const body = type.startsWith('multipart/form-data')
+      ? await new Response(init.body as BodyInit, { headers: { 'content-type': type } }).formData()
+      : undefined;
+    const call = { method: init.method ?? 'GET', url, body, headers };
     calls.push(call);
     return handler(call);
   }) as unknown as typeof fetch;
@@ -44,10 +52,7 @@ describe('SupertextClient', () => {
     const { fn, calls } = fakeFetch(() => new Response('{"detail":"bad key"}', { status: 401 }));
     const client = new SupertextClient({ apiKey: 'wrong', fetch: fn });
     await expect(client.translateDocument('<p>x</p>', { targetLanguage: 'fr' })).rejects.toThrow(/Authentication failed.*bad key/);
-    await expect(client.validate()).rejects.toMatchObject({
-      code: 'authFailed',
-      values: { detail: '{"detail":"bad key"}' },
-    });
+    await expect(client.validate()).rejects.toMatchObject({ code: 'authFailed', values: { detail: expect.stringContaining('bad key') } });
     expect(calls).toHaveLength(2);
   });
 
@@ -60,16 +65,24 @@ describe('SupertextClient', () => {
     expect(calls.at(-1)?.method).toBe('DELETE');
   });
 
+  it('maps an unsupported language pair to its own code', async () => {
+    const { fn } = fakeFetch(() => new Response('{"error_code":"INVALID_LANGUAGE_PAIR","source_lang":"en","target_lang":"xx"}', { status: 400 }));
+    await expect(new SupertextClient({ apiKey: 'k', fetch: fn }).translateDocument('<p>x</p>', { targetLanguage: 'xx', sourceLanguage: 'en' })).rejects.toMatchObject({
+      code: 'invalidLanguagePair',
+    });
+  });
+
   it('refuses to start without an API key', () => {
     expect(() => new SupertextClient({ apiKey: '' })).toThrow(/No Supertext API key/);
   });
 });
 
-describe('authHeader', () => {
+describe('API key', () => {
   it('accepts the key with or without the Supertext-Auth-Key prefix', async () => {
-    const { authHeader } = await import('../server/src/supertext/client');
-    expect(authHeader('abc+/=')).toBe('Supertext-Auth-Key abc+/=');
-    expect(authHeader(' Supertext-Auth-Key abc+/= ')).toBe('Supertext-Auth-Key abc+/=');
+    const { fn, calls } = fakeFetch(() => Response.json({}));
+    await new SupertextClient({ apiKey: ' Supertext-Auth-Key abc+/= ', fetch: fn }).validate();
+    await new SupertextClient({ apiKey: 'abc+/=', fetch: fn }).validate();
+    expect(calls.map((c) => c.headers.get('authorization'))).toEqual(['Supertext-Auth-Key abc+/=', 'Supertext-Auth-Key abc+/=']);
   });
 });
 
@@ -96,7 +109,7 @@ describe('rate limiting', () => {
   });
 
   it('honours Retry-After', async () => {
-    const { retryDelayMs } = await import('../server/src/supertext/client');
+    const { retryDelayMs } = await import('../server/src/vendor/supertext-sdk/index');
     expect(retryDelayMs(0, '3')).toBe(3000);
     expect(retryDelayMs(1, null)).toBeGreaterThanOrEqual(2000);
   });

@@ -82,5 +82,6 @@ AI file translation API v1, same as the WordPress plugin: POST HTML file → pol
 ## Strapi specifics
 
 - Before finishing: `npm test`, `npm run test:ts:back`, `npm run test:ts:front`, `npm run build`.
+- All Supertext API calls go through the Supertext SDK, whose TypeScript sources are copied into `server/src/vendor/supertext-sdk` and bundled with the server; `server/src/supertext/client.ts` wraps it and maps its error codes. Never edit `server/src/vendor/`: fix the SDK in `Supertext/Supertext-API-SDK-and-Guide` and run `scripts/vendor-sdk.sh`. Every SDK error code needs a plugin code with an `error.<code>` message in all four languages.
 - Test UI changes in `demo/` against the mock (`npm run mock`, `npm run demo:install`, `cd demo && npm run develop`).
 - `main` deploys the demo to Railway (project `supertext-cms-demos`, service `Strapi`) via the `Dockerfile`.

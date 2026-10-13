@@ -65,6 +65,7 @@ The panel shows the reason next to the language that failed, in red, and the oth
 | --- | --- |
 | *Supertext is not configured yet* | Ask an administrator to add the API key (the [installation guide](INSTALLATION.md#get-a-supertext-account-and-api-key) explains how to get one). |
 | *You may not edit these locales* | Your role can't edit that language. Ask an administrator. |
+| *Supertext does not support this language pair* | One of the languages isn't one Supertext translates. Ask an administrator to check the language codes on the Supertext settings page. |
 | *Your Supertext translation limit is exceeded* | The Supertext account's quota is used up. Contact your Supertext account manager. |
 | *Timed out waiting* | Try again; for very long entries ask an administrator to raise the time limit. |
 

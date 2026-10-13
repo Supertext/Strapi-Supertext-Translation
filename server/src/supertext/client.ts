@@ -1,11 +1,16 @@
 /**
- * Supertext AI file translation (https://api.supertext.com/v1/).
- *
- * Same protocol as the Supertext WordPress and TYPO3 plugins: submit one HTML
- * document, poll its status, download the translation, delete the file.
+ * Supertext AI file translation (https://api.supertext.com/v1/) through the shared
+ * Supertext SDK: submit one HTML document, poll its status, download the
+ * translation, delete the file. No Strapi imports here (tested on its own).
  */
+import {
+  LIVE_BASE_URL,
+  SupertextClient as SdkClient,
+  SupertextError as SdkError,
+  type FetchLike,
+} from '../vendor/supertext-sdk/index';
 
-export const LIVE_ENDPOINT = 'https://api.supertext.com/v1/';
+export const LIVE_ENDPOINT = LIVE_BASE_URL;
 
 /** Stay well below the API's 1,000,000 character limit per document. */
 export const MAX_DOCUMENT_CHARACTERS = 900_000;
@@ -23,22 +28,10 @@ export interface ClientOptions {
   sleep?: (ms: number) => Promise<void>;
 }
 
-/** Retries after HTTP 429 (the API limits requests per second), e.g. when several languages start at once. */
-export const RATE_LIMIT_RETRIES = 4;
-
-/** Wait before retry `attempt` (0-based): the Retry-After header if present, else 1 s, 2 s, 4 s, 8 s plus jitter. */
-export function retryDelayMs(attempt: number, retryAfter: string | null): number {
-  const seconds = Number(retryAfter);
-  if (retryAfter && Number.isFinite(seconds) && seconds >= 0) {
-    return Math.min(30_000, seconds * 1000);
-  }
-  return 1000 * 2 ** attempt + Math.floor(Math.random() * 250);
-}
-
 export interface TranslateOptions {
-  /** BCP-47 target, e.g. "de-CH". */
+  /** Any form ("de", "de_ch"); sent as a regional code. */
   targetLanguage: string;
-  /** Any form ("en", "en-US"); only the primary subtag is sent. Empty = auto-detect. */
+  /** Any form ("en", "en-US"); sent as the bare language. Empty = auto-detect. */
   sourceLanguage?: string;
   politeness?: Politeness;
 }
@@ -60,143 +53,82 @@ export class SupertextError extends Error {
   }
 }
 
-export class SupertextClient {
-  private readonly endpoint: string;
-  private readonly pollIntervalMs: number;
-  private readonly pollTimeoutMs: number;
-  private readonly fetchFn: typeof fetch;
-  private readonly sleep: (ms: number) => Promise<void>;
+/** SDK error code → this plugin's code (admin key `error.<code>`) and English message. */
+const ERRORS: Record<string, [string, string]> = {
+  missing_api_key: ['notConfigured', 'No Supertext API key configured.'],
+  authentication_failure: [
+    'authFailed',
+    'Authentication failed. Please check the Supertext API key. No Supertext account yet? Create one at https://www.supertext.com/person/en/account/signin. Generate your API key at https://www.supertext.com/en/integrations/api (supertext.com → Integrations → API; requires the Admin role).',
+  ],
+  invalid_language_pair: ['invalidLanguagePair', 'Supertext does not support this language pair.'],
+  not_found: ['notFound', 'The requested Supertext resource was not found.'],
+  payload_too_large: ['tooLarge', 'The content is too large for Supertext to translate in one go.'],
+  too_many_requests: ['rateLimited', 'Too many requests to Supertext. Please try again shortly.'],
+  service_unavailable: ['unavailable', 'The Supertext service is currently unavailable.'],
+  unexpected_status: ['http', 'Supertext answered with an unexpected HTTP status.'],
+  transport_error: ['unreachable', 'Could not reach Supertext.'],
+  no_file_id: ['noFileId', 'Supertext did not return a file id.'],
+  translation_error: ['failed', 'Supertext failed to translate the document.'],
+  quota_exceeded: ['limitExceeded', 'Your Supertext translation limit is exceeded.'],
+  file_deleted: ['fileDeleted', 'The Supertext file was deleted before it could be downloaded.'],
+  timeout: ['timeout', 'Timed out waiting for the Supertext translation.'],
+  incomplete_response: ['emptyTranslation', 'The translated document was empty.'],
+};
 
-  constructor(private readonly options: ClientOptions) {
+/** The SDK's error as this plugin's SupertextError (code and values for the admin panel). */
+export function fromSdkError(error: SdkError): SupertextError {
+  const [code, english] = ERRORS[error.code] ?? ['unknown', error.message];
+  const values: Record<string, string | number> = {};
+  if (code === 'http' && error.status) values.status = error.status;
+  if (error.detail) values.detail = error.detail;
+  if (code === 'invalidLanguagePair') values.detail = `${error.sourceLang ?? '?'} → ${error.targetLang ?? '?'}`;
+  const message = code === 'http' && error.status ? `Supertext answered with HTTP ${error.status}.` : english;
+  return new SupertextError(values.detail ? `${message} (${values.detail})` : message, error.status, code, values);
+}
+
+/**
+ * The plugin's access to the Supertext AI file translation API, built on the shared
+ * Supertext SDK (server/src/vendor/supertext-sdk, compiled with the plugin). The SDK does
+ * the protocol (upload, polling, download, cleanup also after errors), the auth header
+ * (a pasted `Supertext-Auth-Key ` prefix is stripped), HTTP 429 retries and the
+ * language codes (bare source, regional target).
+ */
+export class SupertextClient {
+  private readonly sdk: SdkClient;
+
+  constructor(options: ClientOptions) {
     if (!options.apiKey) {
       throw new SupertextError('No Supertext API key configured.', undefined, 'notConfigured');
     }
-    this.endpoint = (options.endpoint || LIVE_ENDPOINT).replace(/\/+$/, '') + '/';
-    this.pollIntervalMs = Math.max(250, options.pollIntervalMs ?? 2000);
-    this.pollTimeoutMs = Math.max(5000, options.pollTimeoutMs ?? 180_000);
-    this.fetchFn = options.fetch ?? fetch;
-    this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+    const pollIntervalMs = Math.max(250, options.pollIntervalMs ?? 2000);
+    this.sdk = new SdkClient(options.apiKey, {
+      baseUrl: options.endpoint || LIVE_ENDPOINT,
+      pollIntervalMs,
+      timeoutMs: Math.max(5000, options.pollTimeoutMs ?? 180_000),
+      userAgent: 'strapi-plugin-supertext-translation',
+      ...(options.fetch ? { fetch: options.fetch as unknown as FetchLike } : {}),
+      ...(options.sleep ? { sleep: options.sleep } : {}),
+    });
   }
 
   /** Translates a complete HTML document and returns the translated HTML. */
   async translateDocument(html: string, options: TranslateOptions): Promise<string> {
-    const fileId = await this.submit(html, options);
     try {
-      await this.waitUntilDone(fileId);
-      return await this.download(fileId);
-    } finally {
-      await this.request('DELETE', `translate/ai/file/${encodeURIComponent(fileId)}`).catch(() => undefined);
+      return await this.sdk.translateHtml(html, options.targetLanguage, {
+        sourceLang: options.sourceLanguage || null,
+        politeness: options.politeness ?? 'default',
+      });
+    } catch (error) {
+      throw error instanceof SdkError ? fromSdkError(error) : error;
     }
   }
 
   /** Cost-free check that the key is valid and the API reachable. */
   async validate(): Promise<void> {
-    await this.request('GET', 'features');
+    try {
+      await this.sdk.validateApiKey();
+    } catch (error) {
+      throw error instanceof SdkError ? fromSdkError(error) : error;
+    }
   }
-
-  private async submit(html: string, options: TranslateOptions): Promise<string> {
-    const form = new FormData();
-    form.append('target_lang', options.targetLanguage);
-    const source = (options.sourceLanguage || '').split(/[-_]/)[0].toLowerCase();
-    if (source) {
-      // A full tag like "de-CH" as source is rejected with INVALID_LANGUAGE_PAIR.
-      form.append('source_lang', source);
-    }
-    if (options.politeness === 'more' || options.politeness === 'less') {
-      form.append('politeness', options.politeness);
-    }
-    // The part's type must be exactly "text/html" (no charset), otherwise 415.
-    form.append('file', new Blob([html], { type: 'text/html' }), 'content.html');
-
-    const response = await this.request('POST', 'translate/ai/file', form);
-    const data = (await response.json().catch(() => ({}))) as { file_id?: string };
-    if (!data.file_id) {
-      throw new SupertextError('Supertext did not return a file id.', undefined, 'noFileId');
-    }
-    return data.file_id;
-  }
-
-  private async waitUntilDone(fileId: string): Promise<void> {
-    const deadline = Date.now() + this.pollTimeoutMs;
-    do {
-      const response = await this.request('GET', `translate/ai/file/${encodeURIComponent(fileId)}/status`);
-      const { status } = (await response.json().catch(() => ({}))) as { status?: string };
-      switch (status) {
-        case 'done':
-          return;
-        case 'error':
-          throw new SupertextError('Supertext failed to translate the document.', undefined, 'failed');
-        case 'limit_exceeded':
-          throw new SupertextError('Your Supertext translation limit is exceeded.', undefined, 'limitExceeded');
-        case 'deleted':
-          throw new SupertextError('The Supertext file was deleted before it could be downloaded.', undefined, 'fileDeleted');
-      }
-      await new Promise((resolve) => setTimeout(resolve, this.pollIntervalMs));
-    } while (Date.now() < deadline);
-    throw new SupertextError('Timed out waiting for the Supertext translation.', undefined, 'timeout');
-  }
-
-  private async download(fileId: string): Promise<string> {
-    const response = await this.request('GET', `translate/ai/file/${encodeURIComponent(fileId)}/translation`);
-    const body = await response.text();
-    if (!body.trim()) {
-      throw new SupertextError('The translated document was empty.', undefined, 'emptyTranslation');
-    }
-    return body;
-  }
-
-  private async request(method: string, path: string, body?: FormData): Promise<Response> {
-    let response: Response;
-    for (let attempt = 0; ; attempt++) {
-      try {
-        response = await this.fetchFn(this.endpoint + path, {
-          method,
-          body,
-          headers: {
-            Authorization: authHeader(this.options.apiKey),
-            Accept: 'application/json',
-          },
-          signal: AbortSignal.timeout(30_000),
-        });
-      } catch (error) {
-        const detail = (error as Error).message;
-        throw new SupertextError(`Could not reach Supertext: ${detail}`, undefined, 'unreachable', { detail });
-      }
-      if (response.status !== 429 || attempt >= RATE_LIMIT_RETRIES) {
-        break;
-      }
-      await response.body?.cancel().catch(() => undefined);
-      await this.sleep(retryDelayMs(attempt, response.headers.get('retry-after')));
-    }
-    if (response.ok) {
-      return response;
-    }
-    const status = response.status;
-    const [code, english] =
-      status === 401 || status === 403
-        ? ['authFailed', 'Authentication failed. Please check the Supertext API key. No Supertext account yet? Create one at https://www.supertext.com/person/en/account/signin. Generate your API key at https://www.supertext.com/en/integrations/api (supertext.com → Integrations → API; requires the Admin role).']
-        : status === 404
-          ? ['notFound', 'The requested Supertext resource was not found.']
-          : status === 413
-            ? ['tooLarge', 'The content is too large for Supertext to translate in one go.']
-            : status === 429
-              ? ['rateLimited', 'Too many requests to Supertext. Please try again shortly.']
-              : status >= 500
-                ? ['unavailable', 'The Supertext service is currently unavailable.']
-                : ['http', `Supertext answered with HTTP ${status}.`];
-    const detail = (await response.text().catch(() => '')).replace(/<[^>]*>/g, '').trim().slice(0, 200);
-    const values: Record<string, string | number> = code === 'http' ? { status } : {};
-    if (detail) {
-      values.detail = detail;
-    }
-    throw new SupertextError(detail ? `${english} (${detail})` : english, status, code, values);
-  }
-}
-
-/**
- * The Authorization header value. Accepts the key with or without the
- * `Supertext-Auth-Key ` prefix (Supertext shows it with the prefix).
- */
-export function authHeader(apiKey: string): string {
-  return `Supertext-Auth-Key ${apiKey.trim().replace(/^Supertext-Auth-Key\s+/i, '')}`;
 }

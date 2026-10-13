@@ -137,6 +137,7 @@ Remove the `supertext` block from `config/plugins`, run `npm uninstall strapi-pl
 | *Too many requests to Supertext* | The API's per-second limit was still exceeded after 4 automatic retries. Wait a moment and translate again. |
 | *Supertext is not configured yet* / *No API key* | Set `SUPERTEXT_API_KEY` (or `config.apiKey`) and restart Strapi. No key yet? See [Get a Supertext account and API key](#get-a-supertext-account-and-api-key). |
 | *Authentication failed* | The key is wrong or revoked. Generate a new one at [supertext.com → Integrations → API](https://www.supertext.com/en/integrations/api) (requires the Admin role). |
+| *Supertext does not support this language pair* | A locale code Supertext doesn't know (or the pair isn't offered). Set a `code` for that locale in the plugin's `locales` setting (e.g. `de-CH`); the message shows the codes that were sent. |
 | *This content type is not localized* | Enable internationalization for the content type in the Content-Type Builder. |
 | *not enabled for this content type* | The type isn't in `contentTypes`. |
 | *No … version of this entry found. Save it first.* | The entry hasn't been saved in the source locale yet. |

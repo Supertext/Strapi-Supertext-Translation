@@ -47,6 +47,7 @@
   "error.emptyTranslation": "Das übersetzte Dokument war leer.",
   "error.unreachable": "Supertext ist nicht erreichbar: {detail}",
   "error.notFound": "Die angeforderte Supertext-Ressource wurde nicht gefunden.",
+  "error.invalidLanguagePair": "Supertext unterstützt dieses Sprachpaar nicht ({detail}). Prüfen Sie die Sprachcodes in der Plugin-Einstellung locales.",
   "error.tooLarge": "Der Inhalt ist zu gross, um von Supertext in einem Durchgang übersetzt zu werden.",
   "error.rateLimited": "Zu viele Anfragen an Supertext. Bitte versuchen Sie es in Kürze erneut.",
   "error.unavailable": "Der Supertext-Dienst ist derzeit nicht verfügbar.",

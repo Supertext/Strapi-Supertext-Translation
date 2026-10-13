@@ -17,9 +17,12 @@ server/src/                Server (Koa) part
   controllers/translate.ts Permission checks, request handling
   services/translator.ts   Orchestration: load source, translate per locale, save
   services/extract.ts      Pure schema walk: data for the target + text segments
-  supertext/client.ts      Supertext AI file translation API client
+  supertext/client.ts      the plugin's Supertext client on top of the Supertext SDK; SDK error codes → plugin codes
+  supertext/languages.ts   Strapi locale → Supertext code (the SDK's LanguageCodes)
+  vendor/supertext-sdk/    Supertext SDK sources (TypeScript), bundled with the server; see *Supertext SDK*
   supertext/html.ts        Pack/unpack segments into one HTML document
   supertext/blocks.ts      Strapi "blocks" inline nodes <-> HTML
+scripts/vendor-sdk.sh      updates server/src/vendor/supertext-sdk
 test/                      Vitest unit tests + mock Supertext API
 demo/                      Strapi 5 demo app (Article type, Swiss locales, sample entry)
 Dockerfile, railway.json   Demo image for Railway
@@ -60,24 +63,30 @@ Editor clicks "Translate with Supertext" (SupertextPanel)
 
 ## Supertext API protocol
 
-Shared with the WordPress and TYPO3 plugins:
+Shared with the WordPress plugin and every other Supertext plugin, and done by the Supertext SDK:
 
 1. `POST {base}translate/ai/file` — multipart: `file` (part type exactly `text/html`, no charset, else 415), `target_lang` (regional code, e.g. `de-CH`), optional `source_lang` (bare language, e.g. `en`; see *Language codes*), optional `politeness` (`more`/`less`) → `{ file_id }`
 2. `GET …/{file_id}/status` until `done` (`error`, `limit_exceeded`, `deleted` are terminal)
 3. `GET …/{file_id}/translation` → translated HTML
-4. `DELETE …/{file_id}` (files also expire after 24 h)
+4. `DELETE …/{file_id}`, also after errors (files also expire after 24 h)
 
-Header: `Authorization: Supertext-Auth-Key <key>`. The key may be configured with or without the `Supertext-Auth-Key ` prefix; the client strips it and always sends exactly one. The header name must be `Authorization` (the live API answers 403 to `Authentication`).
+Header: `Authorization: Supertext-Auth-Key <key>`. The key may be configured with or without the `Supertext-Auth-Key ` prefix; exactly one is sent. The header name must be `Authorization` (the live API answers 403 to `Authentication`).
 
-**Rate limit:** the API limits requests per second per key (HTTP 429, `RATE_LIMIT_EXCEEDED`); translating into several languages at once hits it. The client retries a 429 up to 4 times, waiting for `Retry-After` if sent, otherwise 1, 2, 4 and 8 seconds (plus jitter), before reporting *Too many requests*. Each segment travels as `<div data-st-id="N">…</div>`; plain text is escaped with line breaks as `<br>`.
+**Rate limit:** the API limits requests per second per key (HTTP 429, `RATE_LIMIT_EXCEEDED`); translating into several languages at once hits it. A 429 is retried up to 4 times, waiting for `Retry-After` if sent, otherwise 1, 2, 4 and 8 seconds (plus jitter, at most 30 s), before reporting *Too many requests*. Each segment travels as `<div data-st-id="N">…</div>` (`server/src/supertext/html.ts`); plain text is escaped with line breaks as `<br>`.
+
+### Supertext SDK
+
+All Supertext calls go through the [Supertext SDK](https://github.com/Supertext/Supertext-API-SDK-and-Guide) (`sdk/typescript`), the shared client of all Supertext plugins. Its TypeScript sources are copied into `server/src/vendor/supertext-sdk/` and bundled into `dist/server` by `strapi-plugin build`, so sites install nothing besides the plugin; `COMMIT` and `VERSION` name the SDK commit and version (the server's `tsconfig.json` uses `lib: ES2022` for them). Never edit the copy: fix the SDK repository and copy it again with `scripts/vendor-sdk.sh [commit-or-tag]` (or `SDK_DIR=<clone> scripts/vendor-sdk.sh`), then run tests, type checks and the build, and note the update in `CHANGELOG.md`.
+
+`server/src/supertext/client.ts` wraps the SDK client and maps the SDK's error codes to the plugin's own (`error.<code>` in the admin translations): `missing_api_key` → `notConfigured`, `authentication_failure` → `authFailed`, `invalid_language_pair` → `invalidLanguagePair` (detail: the codes sent), `not_found` → `notFound`, `payload_too_large` → `tooLarge`, `too_many_requests` → `rateLimited`, `service_unavailable` → `unavailable`, `unexpected_status` → `http`, `transport_error` → `unreachable`, `no_file_id` → `noFileId`, `translation_error` → `failed`, `quota_exceeded` → `limitExceeded`, `file_deleted` → `fileDeleted`, `timeout` → `timeout`, `incomplete_response` → `emptyTranslation`. The API key never appears in messages.
 
 ### Language codes
 
 Supertext's rule (from testing the live API): **source = bare language** (`en`, `de`), **target = regional code** (`de-DE`, `fr-CH`, `en-US`). A regional source or a bare target is rejected with `INVALID_LANGUAGE_PAIR`. Translating within one language (source `en`, target `en-GB`) is allowed.
 
-`server/src/supertext/languages.ts` turns Strapi locale codes into Supertext codes (the settings page uses the same function for its *Sent to Supertext as* column):
+`server/src/supertext/languages.ts` turns Strapi locale codes into Supertext codes with the SDK's `LanguageCodes` (the settings page uses the same function for its *Sent to Supertext as* column):
 
-- `targetCode(locale, code)`: the `locales.<locale>.code` setting wins, else the locale. The code is normalized (`de_ch`/`de-ch` → `de-CH`; scripts and numeric regions keep their form: `zh-Hant`, `es-419`). A bare language gets its default region from `DEFAULT_REGIONS`: ar→ar-SA, bg→bg-BG, cs→cs-CZ, da→da-DK, de→de-DE, el→el-GR, en→en-US, es→es-ES, et→et-EE, fi→fi-FI, fr→fr-FR, hr→hr-HR, hu→hu-HU, it→it-IT, ja→ja-JP, ko→ko-KR, lt→lt-LT, lv→lv-LV, nb→nb-NO, nl→nl-NL, pl→pl-PL, pt→pt-PT, ro→ro-RO, ru→ru-RU, sk→sk-SK, sl→sl-SI, sr→sr-RS, sv→sv-SE, th→th-TH, tr→tr-TR, uk→uk-UA, vi→vi-VN, zh→zh-CN (same table as the other Supertext plugins). Unknown bare codes are sent unchanged, so Supertext's error names them.
+- `targetCode(locale, code)`: the `locales.<locale>.code` setting wins, else the locale. The code is normalized (`de_ch`/`de-ch` → `de-CH`; scripts and numeric regions keep their form: `zh-Hant`, `es-419`). A bare language gets its default region from the SDK's `DEFAULT_REGIONS` (de→de-DE, en→en-US, fr→fr-FR, it→it-IT, pt→pt-PT, zh→zh-CN, …; the same table in every Supertext plugin). Unknown bare codes are sent unchanged, so Supertext's error names them.
 - `sourceCode(locale, code)`: the language of the source locale's `code` setting or of the locale (`en-US` → `en`).
 
 The mock API (`test/mock-supertext.mjs`) rejects bare targets and regional sources like the real API.
@@ -128,7 +137,7 @@ Server errors are English (`message`, for logs and API clients) and carry a `cod
 | `test/html.test.ts` | Segment packing round trip (escaping, line breaks, Unicode, Markdown) |
 | `test/blocks.test.ts` | Blocks inline ↔ HTML (marks, links, line breaks) |
 | `test/extract.test.ts` | Field selection, copying, ids, dynamic zones, populate tree |
-| `test/client.test.ts` | API call sequence, form fields, errors, cleanup |
+| `test/client.test.ts` | The plugin's client on the SDK: call sequence, form fields, key prefix, 429 retries, error codes, cleanup (the SDK's own tests run in the SDK repository) |
 | `test/translations.test.ts` | All four admin languages have the same keys, placeholders, tags and URLs; every key and server error code has an English message |
 
 CI (`.github/workflows/ci.yml`) runs type checks, tests and the build on Node 20 and 22, then builds the demo admin panel with the packed plugin.
