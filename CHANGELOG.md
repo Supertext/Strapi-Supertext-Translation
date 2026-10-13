@@ -8,6 +8,7 @@
 - The *No API key* and *Authentication failed* messages now link to both Supertext account signup and API key generation.
 - The settings page shows the installed plugin version, linked to its release notes on GitHub.
 - Fix: target locales without a region (e.g. `de`) are now sent to Supertext as `de-DE` (`fr` → `fr-FR`, `en` → `en-US`, …); Supertext rejected them with `INVALID_LANGUAGE_PAIR`. Regional codes are normalized (`de_ch` → `de-CH`), the source uses the language of its `code` setting, and the settings page shows the code actually sent.
+- Fix: locale codes with a variant, such as `de_DE_formal` or `en-US-x-twain`, are sent to Supertext as `de-DE` and `en-US` (bundled SDK updated to commit `aba02dd`).
 
 ## 0.1.0 — 2026-10-07
 
