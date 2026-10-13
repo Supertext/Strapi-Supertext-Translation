@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Changed: the connection to Supertext now uses the shared [Supertext SDK](https://github.com/Supertext/Supertext-API-SDK-and-Guide) (TypeScript SDK 0.1.0), bundled into the plugin, so nothing else needs installing. Translation works as before; an unsupported language pair now has its own message (*Supertext does not support this language pair*) in all four languages, and the file at Supertext is also deleted after errors.
+- Changed: the connection to Supertext now uses the shared [Supertext SDK](https://github.com/Supertext/Supertext-API-SDK-and-Guide) (TypeScript SDK 0.1.0), bundled into the plugin, so nothing else needs installing. Translation works as before; an unsupported language pair now has its own message (*Supertext does not support this language pair*) in all four languages, and the file at Supertext is also deleted after errors. An unknown language (e.g. `xx-YY`) is now reported as an unsupported language pair too, not as "resource not found" (Supertext answers it with HTTP 404).
 - Added: French and Italian interface (and German where it was missing): the panel, settings page and error messages follow the user's Strapi interface language. The demo offers German, French and Italian as interface languages.
 - The *No API key* and *Authentication failed* messages now link to both Supertext account signup and API key generation.
 - The settings page shows the installed plugin version, linked to its release notes on GitHub.
