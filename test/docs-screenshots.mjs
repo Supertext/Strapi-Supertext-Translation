@@ -6,7 +6,7 @@ const EMAIL = process.env.DEMO_ADMIN_EMAIL || 'anna.muster@example.com';
 const PASSWORD = process.env.DEMO_ADMIN_PASSWORD || 'Docs12345';
 const B = process.env.STRAPI_URL || 'http://127.0.0.1:1337';
 const OUT = new URL('../docs/images', import.meta.url).pathname;
-const browser = await chromium.launch();
+const browser = await chromium.launch(process.env.CHROME ? { executablePath: process.env.CHROME } : {});
 const page = await browser.newPage({ viewport: { width: 1400, height: 940 }, deviceScaleFactor: 1 });
 page.on('pageerror', (e) => console.log('PAGEERROR', e.message));
 const shot = (name, opts = {}) => page.screenshot({ path: `${OUT}/${name}.png`, ...opts });
@@ -23,10 +23,17 @@ await page.keyboard.press('Escape').catch(() => {});
 // Installation guide: settings page + locales
 await page.goto(`${B}/admin/settings/supertext`);
 await page.getByText('Connection').first().waitFor({ timeout: 30000 });
+// Show the API key check (the stand-in answers GET features like Supertext).
+await page.getByRole('button', { name: 'Test connection' }).click();
+await page.getByText('API key checked: the connection to Supertext works.').waitFor({ timeout: 30000 });
 await page.waitForTimeout(800);
 // Show the endpoint users will see (the screenshot run uses a local stand-in).
 await page.getByText(/Endpoint:/).evaluate((el) => (el.textContent = 'Endpoint: https://api.supertext.com/v1/'));
-await shot('settings');
+// The settings page scrolls inside Strapi's layout: a taller window shows all of it.
+await page.setViewportSize({ width: 1400, height: 1240 });
+await page.waitForTimeout(500);
+await shot('settings', { clip: { x: 0, y: 0, width: 1400, height: 1030 } });
+await page.setViewportSize({ width: 1400, height: 940 });
 await page.goto(`${B}/admin/settings/internationalization`);
 await page.waitForTimeout(2500);
 await shot('locales');

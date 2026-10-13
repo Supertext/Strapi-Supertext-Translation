@@ -55,7 +55,7 @@ When a translation is replaced, its URL slug is kept so existing links keep work
 
 ## Formal and informal language
 
-Your administrator can set each language to formal (*Sie/vous*) or informal (*du/tu*). The current setting is visible under *Settings → Supertext → Translation*.
+Your administrator can set each language to formal (*Sie/vous*) or informal (*du/tu*). The current setting is visible under *Settings → Supertext → Translation*. Supertext doesn't offer this choice for every language (not for English, Swiss German, Romansh, Albanian or Serbian); those are translated in Supertext's default tone.
 
 ## When something goes wrong
 
@@ -65,7 +65,9 @@ The panel shows the reason next to the language that failed, in red, and the oth
 | --- | --- |
 | *Supertext is not configured yet* | Ask an administrator to add the API key (the [installation guide](INSTALLATION.md#get-a-supertext-account-and-api-key) explains how to get one). |
 | *You may not edit these locales* | Your role can't edit that language. Ask an administrator. |
-| *Supertext does not support this language pair* | One of the languages isn't one Supertext translates. Ask an administrator to check the language codes on the Supertext settings page. |
+| *The language … has no Supertext language yet* | Your administrator hasn't told the plugin which Supertext language to use for this locale. Ask them to map it; the other languages are translated. |
+| *Supertext does not support this language pair* | One of the languages isn't one Supertext translates. Ask an administrator to check the language mapping on the Supertext settings page. |
+| *Supertext offers no formal or informal tone for the language …* | The formal/informal setting for that language isn't available at Supertext (e.g. for English). Ask an administrator to set it to the default tone. |
 | *Your Supertext translation limit is exceeded* | The Supertext account's quota is used up. Contact your Supertext account manager. |
 | *Timed out waiting* | Try again; for very long entries ask an administrator to raise the time limit. |
 

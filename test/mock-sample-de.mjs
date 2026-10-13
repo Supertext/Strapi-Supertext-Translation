@@ -31,6 +31,8 @@ http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://x'); const p = u.pathname.replace(/^\/v1/, '');
   const send = (s, b, t = 'application/json') => { res.writeHead(s, { 'Content-Type': t }); res.end(t === 'application/json' ? JSON.stringify(b) : b); };
   if (p === '/features') return send(200, {});
+  // Stands in for the Commando Center too (SUPERTEXT_REPORT_URL=http://127.0.0.1:8765/report), so screenshots report nothing.
+  if (req.method === 'POST' && p === '/report') { const c = []; for await (const x of req) c.push(x); console.log('report', Buffer.concat(c).toString('utf8')); return send(202, { ok: true }); }
   if (req.method === 'POST') {
     const chunks = []; for await (const c of req) chunks.push(c);
     const form = await new Request('http://x', { method: 'POST', headers: req.headers, body: Buffer.concat(chunks) }).formData();

@@ -1,3 +1,4 @@
+import reporting from './reporting';
 import translator from './translator';
 
-export default { translator };
+export default { reporting, translator };

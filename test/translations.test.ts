@@ -50,6 +50,10 @@ describe('admin translations', () => {
     for (const status of ['created', 'updated']) {
       expect(en).toHaveProperty([`panel.result.${status}`]);
     }
+    // The API key check's results (texts from the Commando Center's guide).
+    for (const status of ['ok', 'invalid', 'missing', 'unreachable', 'error']) {
+      expect(en).toHaveProperty([`keycheck.${status}`]);
+    }
   });
 
   it('has a message for every error code the server sends', () => {
@@ -59,9 +63,11 @@ describe('admin translations', () => {
     const codes = new Set([
       ...[...server.matchAll(/Error\(\s*(?:'[^']*'|`[^`]*`),\s*(?:\d+|undefined),\s*'(\w+)'/g)].map((m) => m[1]),
       ...[...server.matchAll(/code: '(\w+)'/g)].map((m) => m[1]),
-      ...[...server.matchAll(/\['(\w+)', ['`]/g)].map((m) => m[1]),
+      ...[...server.matchAll(/\[\s*'(\w+)',\s*['`]/g)].map((m) => m[1]),
     ]);
     expect(codes.size).toBeGreaterThan(15);
+    expect(codes).toContain('unsupportedLanguage');
+    expect(codes).toContain('unsupportedFeature');
     for (const code of codes) {
       expect(en, code).toHaveProperty([`error.${code}`]);
     }

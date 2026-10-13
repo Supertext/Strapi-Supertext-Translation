@@ -23,7 +23,11 @@ version="$(sed -n 's/^  "version": "\(.*\)",$/\1/p' "$src/sdk/typescript/package
 dest="$root/server/src/vendor/supertext-sdk"
 rm -rf "$dest"
 mkdir -p "$dest"
-cp "$src"/sdk/typescript/src/*.ts "$dest/"
+# src/ has the version-neutral index and one folder per API version (v1/): copy the tree.
+(cd "$src/sdk/typescript/src" && find . -name '*.ts' ! -name '*.test.ts' | while read -r f; do
+  mkdir -p "$dest/$(dirname "$f")"
+  cp "$f" "$dest/$f"
+done)
 cp "$src/sdk/typescript/LICENSE" "$dest/LICENSE"
 printf '%s\n' "$commit" > "$dest/COMMIT"
 printf '%s\n' "$version" > "$dest/VERSION"

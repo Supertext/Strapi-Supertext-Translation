@@ -2,8 +2,7 @@ import * as React from 'react';
 import { useIntl } from 'react-intl';
 import { Box, Button, Flex, Table, Tbody, Td, Th, Thead, Tr, Typography } from '@strapi/design-system';
 import { Layouts, Page, useFetchClient, useNotification } from '@strapi/strapi/admin';
-import { apiError, type PluginStatus, type StrapiLocale } from '../api';
-import { targetCode } from '../../../server/src/supertext/languages';
+import { apiError, type KeyCheck, type PluginStatus } from '../api';
 import { PLUGIN_ID } from '../pluginId';
 import { errorText } from '../utils/errorText';
 import { getTranslation } from '../utils/getTranslation';
@@ -13,30 +12,50 @@ const API_KEY_URL = 'https://www.supertext.com/en/integrations/api';
 const RELEASES_URL = 'https://github.com/Supertext/Strapi-Supertext-Translation/releases/tag/';
 const RELEASE_VERSION = /^\d+\.\d+\.\d+$/;
 
+const link = (href: string) => (chunks: React.ReactNode) => (
+  <a href={href} target="_blank" rel="noopener noreferrer">
+    {chunks}
+  </a>
+);
+
 /**
- * Read-only overview: whether an API key is set, which endpoint is used and how
- * each Strapi locale maps to Supertext. Configuration lives in config/plugins.
+ * Read-only overview: whether an API key is set and the latest key check, which endpoint is
+ * used, whether version information is sent, and how each Strapi locale maps to Supertext.
+ * Configuration lives in config/plugins.
  */
 const Settings = () => {
-  const { formatMessage } = useIntl();
+  const { formatMessage, locale } = useIntl();
   const { get, post } = useFetchClient();
   const { toggleNotification } = useNotification();
   const [status, setStatus] = React.useState<PluginStatus | null>(null);
-  const [locales, setLocales] = React.useState<StrapiLocale[]>([]);
+  const [check, setCheck] = React.useState<KeyCheck | null>(null);
   const [testing, setTesting] = React.useState(false);
   const t = (id: string, defaultMessage: string, values?: Record<string, string>) =>
     formatMessage({ id: getTranslation(id), defaultMessage }, values);
 
   React.useEffect(() => {
-    get<PluginStatus>(`/${PLUGIN_ID}/status`).then(({ data }) => setStatus(data));
-    get<StrapiLocale[]>('/i18n/locales').then(({ data }) => setLocales(data));
+    get<PluginStatus>(`/${PLUGIN_ID}/status`).then(({ data }) => {
+      setStatus(data);
+      setCheck(data.reports?.check ?? null);
+    });
   }, [get]);
+
+  /** The key check in the user's language (texts from the Commando Center's guide). */
+  const checkText = (c: KeyCheck) =>
+    formatMessage(
+      { id: getTranslation(`keycheck.${c.status}`), defaultMessage: c.status },
+      { status: String(c.httpStatus ?? ''), signup: link(SIGNUP_URL), key: link(API_KEY_URL) }
+    );
+  const when = (iso: string) => {
+    const date = new Date(iso);
+    return Number.isNaN(date.getTime()) ? iso : date.toLocaleString(locale);
+  };
 
   const test = async () => {
     setTesting(true);
     try {
-      await post(`/${PLUGIN_ID}/test-connection`);
-      toggleNotification({ type: 'success', message: t('settings.test.ok', 'Connected to Supertext.') });
+      const { data } = await post<{ ok: boolean; check: KeyCheck }>(`/${PLUGIN_ID}/test-connection`);
+      setCheck(data.check);
     } catch (error) {
       toggleNotification({ type: 'danger', message: errorText(formatMessage, apiError(error)) });
     } finally {
@@ -83,18 +102,7 @@ const Settings = () => {
                       defaultMessage:
                         'No Supertext account yet? <signup>Create one at supertext.com</signup>. Generate your API key at <key>supertext.com → Integrations → API</key> (requires the Admin role).',
                     },
-                    {
-                      signup: (chunks: React.ReactNode) => (
-                        <a href={SIGNUP_URL} target="_blank" rel="noopener noreferrer">
-                          {chunks}
-                        </a>
-                      ),
-                      key: (chunks: React.ReactNode) => (
-                        <a href={API_KEY_URL} target="_blank" rel="noopener noreferrer">
-                          {chunks}
-                        </a>
-                      ),
-                    }
+                    { signup: link(SIGNUP_URL), key: link(API_KEY_URL) }
                   )}
                 </Typography>
                 <Typography variant="pi" textColor="neutral600">
@@ -116,6 +124,42 @@ const Settings = () => {
                     )}
                   </Typography>
                 )}
+                <Box paddingTop={3}>
+                  <Typography variant="sigma" textColor="neutral600" tag="h3">
+                    {t('settings.keyCheck', 'API key check')}
+                  </Typography>
+                </Box>
+                {check ? (
+                  <>
+                    <Typography textColor={check.status === 'ok' ? 'success600' : 'danger600'}>{checkText(check)}</Typography>
+                    <Typography variant="pi" textColor="neutral600">
+                      {t('settings.keyCheck.at', 'Last checked: {time}', { time: when(check.checkedAt) })}
+                    </Typography>
+                  </>
+                ) : (
+                  <Typography variant="pi" textColor="neutral600">
+                    {t('settings.keyCheck.none', 'Not checked yet.')}
+                  </Typography>
+                )}
+              </Flex>
+            </Box>
+
+            <Box background="neutral0" hasRadius shadow="filterShadow" padding={6}>
+              <Flex direction="column" alignItems="flex-start" gap={2}>
+                <Typography variant="delta" tag="h2">
+                  {t('settings.reports', 'Send version information to Supertext')}
+                </Typography>
+                <Typography textColor={status.reports?.enabled ? 'success600' : 'neutral800'}>
+                  {status.reports?.enabled
+                    ? t('settings.reports.on', 'On')
+                    : t('settings.reports.off', 'Off (versionReports: false or SUPERTEXT_VERSION_REPORTS=0)')}
+                </Typography>
+                <Typography variant="pi" textColor="neutral600">
+                  {t(
+                    'settings.reports.help',
+                    'Sends the site URL and the versions of this plugin, Strapi and the runtime to Supertext after an update and when the API key changes, so Supertext support can see which version you run. No content, no API key and no personal data are sent. Turn it off with versionReports: false in config/plugins or SUPERTEXT_VERSION_REPORTS=0.'
+                  )}
+                </Typography>
               </Flex>
             </Box>
 
@@ -124,7 +168,7 @@ const Settings = () => {
                 <Typography variant="delta" tag="h2">
                   {t('settings.languages', 'Languages')}
                 </Typography>
-                <Table colCount={3} rowCount={locales.length + 1}>
+                <Table colCount={3} rowCount={status.languages.length + 1}>
                   <Thead>
                     <Tr>
                       <Th><Typography variant="sigma">{t('settings.col.locale', 'Strapi locale')}</Typography></Th>
@@ -133,22 +177,37 @@ const Settings = () => {
                     </Tr>
                   </Thead>
                   <Tbody>
-                    {locales.map((locale) => {
-                      const options = status.locales[locale.code] ?? {};
-                      return (
-                        <Tr key={locale.code}>
-                          <Td><Typography>{locale.name}</Typography></Td>
-                          <Td><Typography>{targetCode(locale.code, options.code)}</Typography></Td>
-                          <Td><Typography>{politeness(options.politeness)}</Typography></Td>
-                        </Tr>
-                      );
-                    })}
+                    {status.languages.map((language) => (
+                      <Tr key={language.code}>
+                        <Td>
+                          <Typography>{language.name}</Typography>
+                        </Td>
+                        <Td>
+                          {language.target ? (
+                            <Typography>{language.target}</Typography>
+                          ) : (
+                            <Typography textColor="danger600" fontWeight="bold">
+                              {t('settings.notMapped', 'Not mapped: set its code under supertext.config.locales')}
+                            </Typography>
+                          )}
+                        </Td>
+                        <Td>
+                          <Typography>{politeness(language.politeness)}</Typography>
+                          {language.politeness !== 'default' && language.politenessSupported === false && (
+                            <Typography textColor="danger600" variant="pi">
+                              {' '}
+                              {t('settings.noPoliteness', 'Supertext offers no formal/informal choice for this language')}
+                            </Typography>
+                          )}
+                        </Td>
+                      </Tr>
+                    ))}
                   </Tbody>
                 </Table>
                 <Typography variant="pi" textColor="neutral600">
                   {t(
                     'settings.languages.help',
-                    'Change codes and politeness in config/plugins under supertext.config.locales.'
+                    'Every Strapi locale needs a Supertext code: a locale that is one (de-CH, fr-CH, es, zh-Hans) is used as it is; map the others (e.g. de → de-CH) with code under supertext.config.locales in config/plugins, where politeness sets formal or informal.'
                   )}
                 </Typography>
               </Flex>

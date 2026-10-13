@@ -4,7 +4,8 @@
  * "Translates" by prefixing every text node with "[<target_lang>] ".
  *
  *   node test/mock-supertext.mjs            # listens on :8765, key "test-key"
- *   SUPERTEXT_API_ENDPOINT=http://localhost:8765/v1/ SUPERTEXT_API_KEY=test-key npm run develop
+ *   SUPERTEXT_API_ENDPOINT=http://localhost:8765/v1/ SUPERTEXT_API_KEY=test-key \
+ *   SUPERTEXT_REPORT_URL=http://localhost:8765/report npm run develop
  */
 import http from 'node:http';
 import { randomBytes } from 'node:crypto';
@@ -13,6 +14,9 @@ import { parse, TextNode } from 'node-html-parser';
 const PORT = Number(process.env.PORT || 8765);
 const KEY = process.env.MOCK_KEY || 'test-key';
 const files = new Map();
+// Like the live API (and the SDK's Languages): exactly these targets; sources are bare.
+const TARGETS = new Set(['bg', 'cs', 'da', 'de-AT', 'de-CH', 'de-DE', 'el', 'en-GB', 'en-US', 'es', 'fi', 'fr-CH', 'fr-FR', 'gsw-u-sd-chbe', 'gsw-u-sd-chzh', 'hr', 'hu', 'it-CH', 'it-IT', 'ja', 'ko', 'nb', 'nl', 'pl', 'pt-BR', 'pt-PT', 'rm', 'ru', 'sk', 'sl', 'sq', 'sr-Cyrl', 'sr-Latn', 'sv', 'tr', 'zh-Hans', 'zh-Hant']);
+const NO_POLITENESS = new Set(['en-GB', 'en-US', 'gsw-u-sd-chbe', 'gsw-u-sd-chzh', 'rm', 'sq', 'sr-Cyrl', 'sr-Latn']);
 
 const send = (res, status, body, type = 'application/json') => {
   res.writeHead(status, { 'Content-Type': type });
@@ -45,6 +49,11 @@ http
     const url = new URL(req.url, 'http://localhost');
     const path = url.pathname.replace(/^\/v1/, '');
     console.log(new Date().toISOString().slice(11, 19), req.method, url.pathname);
+    // Stands in for the Supertext Commando Center too (SUPERTEXT_REPORT_URL=http://127.0.0.1:8765/report).
+    if (req.method === 'POST' && path === '/report') {
+      console.log('   ', (await readBody(req)).toString('utf8'));
+      return send(res, 202, { ok: true });
+    }
     if (req.headers.authorization !== `Supertext-Auth-Key ${KEY}`) return send(res, 401, { detail: 'bad key' });
     if (path === '/features') return send(res, 200, {});
 
@@ -55,9 +64,13 @@ http
       if (!file || file.type !== 'text/html') return send(res, 415, { detail: `FILETYPE_NOT_ALLOWED ${file?.type}` });
       const fields = Object.fromEntries([...form.entries()].filter(([k]) => k !== 'file'));
       console.log('   ', JSON.stringify(fields), `${(await file.text()).length} chars`);
-      // Like the real API: bare targets (`de`) and regional sources (`de-CH`) are rejected.
-      if (!String(fields.target_lang ?? '').includes('-') || String(fields.source_lang ?? '').includes('-')) {
-        return send(res, 400, { error_code: 'INVALID_LANGUAGE_PAIR', detail: 'INVALID_LANGUAGE_PAIR' });
+      // Like the real API: only its exact target codes (`de-CH`, `es`; not `de`, `es-ES`), bare sources.
+      const target = String(fields.target_lang ?? '');
+      if (!TARGETS.has(target) || String(fields.source_lang ?? '').includes('-')) {
+        return send(res, 404, { error_code: 'INVALID_LANGUAGE_PAIR', detail: 'INVALID_LANGUAGE_PAIR' });
+      }
+      if (fields.politeness && NO_POLITENESS.has(target)) {
+        return send(res, 400, { error_code: 'FEATURE_ERROR', feature: 'politeness', detail: 'FEATURE_ERROR' });
       }
       const id = randomBytes(6).toString('hex');
       files.set(id, { html: await file.text(), lang: fields.target_lang });

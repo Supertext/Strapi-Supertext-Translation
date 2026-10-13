@@ -14,6 +14,26 @@ export interface PluginStatus {
   contentTypes: string[];
   /** Plugin version from package.json, null if the server couldn't read it. */
   version: string | null;
+  /** Every Strapi locale with the Supertext code it is sent as (null: not mapped). */
+  languages: LanguageStatus[];
+  /** "Send version information to Supertext" and the latest automatic API key check. */
+  reports: { enabled: boolean; check: KeyCheck | null };
+}
+
+export interface LanguageStatus {
+  code: string;
+  name: string;
+  target: string | null;
+  politeness: 'default' | 'more' | 'less';
+  politenessSupported: boolean | null;
+}
+
+/** The SDK's API key check (`keycheck.<status>` in translations/*.json). */
+export interface KeyCheck {
+  status: 'ok' | 'invalid' | 'missing' | 'unreachable' | 'error';
+  checkedAt: string;
+  httpStatus: number | null;
+  errorCode: string | null;
 }
 
 export interface StrapiLocale {

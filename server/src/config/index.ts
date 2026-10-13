@@ -1,7 +1,10 @@
 import { LIVE_ENDPOINT, type Politeness } from '../supertext/client';
 
 export interface LocaleOptions {
-  /** Supertext target language code, if it differs from the Strapi locale code. */
+  /**
+   * The Supertext code for this locale (the language mapping), e.g. `de-CH` for the Strapi locale
+   * `de`. Needed for every locale that isn't itself a Supertext code; sent as it is.
+   */
   code?: string;
   /** "more" = formal (Sie/vous), "less" = informal (du/tu). */
   politeness?: Politeness;
@@ -18,6 +21,11 @@ export interface PluginConfig {
   locales: Record<string, LocaleOptions>;
   /** Restrict translation to these content-type UIDs. Empty = every localized type. */
   contentTypes: string[];
+  /**
+   * "Send version information to Supertext" (default on). SUPERTEXT_VERSION_REPORTS=0 turns it
+   * off as well and wins over this option.
+   */
+  versionReports: boolean;
 }
 
 export default {
@@ -28,12 +36,16 @@ export default {
     pollTimeoutMs: 180_000,
     locales: {},
     contentTypes: [],
+    versionReports: true,
   }),
   validator(config: Partial<PluginConfig>) {
     for (const [locale, options] of Object.entries(config.locales ?? {})) {
       if (options?.politeness && !['default', 'more', 'less'].includes(options.politeness)) {
         throw new Error(`supertext: locales.${locale}.politeness must be "default", "more" or "less".`);
       }
+    }
+    if (config.versionReports !== undefined && typeof config.versionReports !== 'boolean') {
+      throw new Error('supertext: versionReports must be true or false.');
     }
     if (config.contentTypes && !Array.isArray(config.contentTypes)) {
       throw new Error('supertext: contentTypes must be an array of content-type UIDs.');

@@ -7,10 +7,15 @@ import {
   LIVE_BASE_URL,
   SupertextClient as SdkClient,
   SupertextError as SdkError,
+  type ApiKeyCheck,
   type FetchLike,
-} from '../vendor/supertext-sdk/index';
+} from '../vendor/supertext-sdk/v1/index';
+
+export type { ApiKeyCheck };
 
 export const LIVE_ENDPOINT = LIVE_BASE_URL;
+
+export const USER_AGENT = 'strapi-plugin-supertext-translation';
 
 /** Stay well below the API's 1,000,000 character limit per document. */
 export const MAX_DOCUMENT_CHARACTERS = 900_000;
@@ -29,9 +34,9 @@ export interface ClientOptions {
 }
 
 export interface TranslateOptions {
-  /** Any form ("de", "de_ch"); sent as a regional code. */
+  /** A Supertext target code (`de-CH`, `es`), sent as it is: resolve it with languages.ts first. */
   targetLanguage: string;
-  /** Any form ("en", "en-US"); sent as the bare language. Empty = auto-detect. */
+  /** A Supertext source code (`en`), sent as it is. Empty = auto-detect. */
   sourceLanguage?: string;
   politeness?: Politeness;
 }
@@ -61,6 +66,14 @@ const ERRORS: Record<string, [string, string]> = {
     'Authentication failed. Please check the Supertext API key. No Supertext account yet? Create one at https://www.supertext.com/person/en/account/signin. Generate your API key at https://www.supertext.com/en/integrations/api (supertext.com → Integrations → API; requires the Admin role).',
   ],
   invalid_language_pair: ['invalidLanguagePair', 'Supertext does not support this language pair.'],
+  unsupported_language: [
+    'unsupportedLanguage',
+    'This language has no Supertext language yet. Ask your administrator to map it to a Supertext code (the code option under locales in the plugin configuration).',
+  ],
+  unsupported_feature: [
+    'unsupportedFeature',
+    'Supertext offers no formal or informal tone for this language. Ask your administrator to remove the politeness option for it in the plugin configuration.',
+  ],
   not_found: ['notFound', 'The requested Supertext resource was not found.'],
   payload_too_large: ['tooLarge', 'The content is too large for Supertext to translate in one go.'],
   too_many_requests: ['rateLimited', 'Too many requests to Supertext. Please try again shortly.'],
@@ -82,7 +95,14 @@ export function fromSdkError(error: SdkError): SupertextError {
   if (code === 'http' && error.status) values.status = error.status;
   if (error.detail) values.detail = error.detail;
   if (code === 'invalidLanguagePair') values.detail = `${error.sourceLang ?? '?'} → ${error.targetLang ?? '?'}`;
-  const message = code === 'http' && error.status ? `Supertext answered with HTTP ${error.status}.` : english;
+  if (code === 'unsupportedLanguage' || code === 'unsupportedFeature') {
+    const language = error.targetLang ?? error.sourceLang;
+    if (language) values.language = language; // else the translator adds the Strapi locale
+    delete values.detail;
+  }
+  let message = code === 'http' && error.status ? `Supertext answered with HTTP ${error.status}.` : english;
+  if (values.language && code === 'unsupportedLanguage') message = message.replace('This language', `The language ${values.language}`);
+  if (values.language && code === 'unsupportedFeature') message = message.replace('this language', `the language ${values.language}`);
   return new SupertextError(values.detail ? `${message} (${values.detail})` : message, error.status, code, values);
 }
 
@@ -90,8 +110,8 @@ export function fromSdkError(error: SdkError): SupertextError {
  * The plugin's access to the Supertext AI file translation API, built on the shared
  * Supertext SDK (server/src/vendor/supertext-sdk, compiled with the plugin). The SDK does
  * the protocol (upload, polling, download, cleanup also after errors), the auth header
- * (a pasted `Supertext-Auth-Key ` prefix is stripped), HTTP 429 retries and the
- * language codes (bare source, regional target).
+ * (a pasted `Supertext-Auth-Key ` prefix is stripped) and HTTP 429 retries. Language codes
+ * are resolved before (languages.ts): the client sends the codes it is given.
  */
 export class SupertextClient {
   private readonly sdk: SdkClient;
@@ -105,7 +125,7 @@ export class SupertextClient {
       baseUrl: options.endpoint || LIVE_ENDPOINT,
       pollIntervalMs,
       timeoutMs: Math.max(5000, options.pollTimeoutMs ?? 180_000),
-      userAgent: 'strapi-plugin-supertext-translation',
+      userAgent: USER_AGENT,
       ...(options.fetch ? { fetch: options.fetch as unknown as FetchLike } : {}),
       ...(options.sleep ? { sleep: options.sleep } : {}),
     });
@@ -121,6 +141,11 @@ export class SupertextClient {
     } catch (error) {
       throw error instanceof SdkError ? fromSdkError(error) : error;
     }
+  }
+
+  /** The automatic key check (`GET features`, cost-free): ok, invalid, missing, unreachable or error. Never throws. */
+  static checkApiKey(apiKey: string, endpoint?: string): Promise<ApiKeyCheck> {
+    return new SdkClient(apiKey ?? '', { baseUrl: endpoint || LIVE_ENDPOINT, userAgent: USER_AGENT }).checkApiKey();
   }
 
   /** Cost-free check that the key is valid and the API reachable. */

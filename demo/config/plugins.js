@@ -14,7 +14,10 @@ module.exports = ({ env }) => ({
     config: {
       apiKey: env('SUPERTEXT_API_KEY'),
       endpoint: env('SUPERTEXT_API_ENDPOINT', 'https://api.supertext.com/v1/'),
+      // de-CH, fr-CH and it-CH are Supertext codes already; Strapi's default locale "en" isn't
+      // (Supertext wants en-US or en-GB as a target), so it is mapped.
       locales: {
+        en: { code: 'en-US' },
         'de-CH': { politeness: 'more' },
         'fr-CH': { politeness: 'more' },
         'it-CH': { politeness: 'more' },

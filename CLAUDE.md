@@ -77,11 +77,12 @@ The user guide and installation guide of every plugin include screenshots of the
 
 AI file translation API v1, same as the WordPress plugin: POST HTML file → poll status → GET translation → DELETE. Details in `docs/DEVELOPER.md`. Never commit API keys; use the `SUPERTEXT_API_KEY` environment variable or the CMS's settings.
 
-**Language codes:** source = bare language (`en`), target = regional code (`de-DE`, `en-US`); Supertext rejects bare targets (`INVALID_LANGUAGE_PAIR`). Bare CMS locales get a regional default; see `docs/DEVELOPER.md` → *Language codes*.
+**Languages:** only the codes Supertext's `GET features` lists (the SDK's `Languages`, `vendor/supertext-sdk/v1`): bare sources (`en`); targets regional only for de/en/fr/it/pt (`de-CH`, `en-US`), `zh-Hans`/`zh-Hant`, `sr-Latn`/`sr-Cyrl`, `gsw-u-sd-chzh`/`chbe`, bare for the rest (`es`, `nl`, `sl`). **No guessing:** the plugin's mapping (`locales.<locale>.code`), else an exact match, else the error `unsupportedLanguage`. No default regions; see `docs/DEVELOPER.md` → *Language codes*.
 
 ## Strapi specifics
 
 - Before finishing: `npm test`, `npm run test:ts:back`, `npm run test:ts:front`, `npm run build`.
 - All Supertext API calls go through the Supertext SDK, whose TypeScript sources are copied into `server/src/vendor/supertext-sdk` and bundled with the server; `server/src/supertext/client.ts` wraps it and maps its error codes. Never edit `server/src/vendor/`: fix the SDK in `Supertext/Supertext-API-SDK-and-Guide` and run `scripts/vendor-sdk.sh`. Every SDK error code needs a plugin code with an `error.<code>` message in all four languages.
 - Test UI changes in `demo/` against the mock (`npm run mock`, `npm run demo:install`, `cd demo && npm run develop`).
+- Commando Center (version reports, key check, ping): `server/src/reporting.ts` on the SDK's `InstallationReporter`; setting `versionReports` / `SUPERTEXT_VERSION_REPORTS`; state in the core store; public `GET /api/supertext/ping`. See `docs/DEVELOPER.md` → *Commando Center*.
 - `main` deploys the demo to Railway (project `supertext-cms-demos`, service `Strapi`) via the `Dockerfile`.

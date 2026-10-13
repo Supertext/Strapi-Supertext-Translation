@@ -14,11 +14,14 @@ admin/src/                 Admin panel (React)
 server/src/                Server (Koa) part
   config/index.ts          Defaults + validation of plugin config
   routes/admin/index.ts    /supertext/* admin routes
-  controllers/translate.ts Permission checks, request handling
-  services/translator.ts   Orchestration: load source, translate per locale, save
+  routes/content-api/      public GET /api/supertext/ping (Commando Center)
+  controllers/translate.ts Permission checks, request handling, when the reporter runs
+  services/translator.ts   Orchestration: load source, translate per locale, save; locale → code list
+  services/reporting.ts    one Reporting per process: state in the core store, Strapi version, REST prefix
+  reporting.ts             Commando Center: version reports, API key check, ping (the SDK's InstallationReporter)
   services/extract.ts      Pure schema walk: data for the target + text segments
   supertext/client.ts      the plugin's Supertext client on top of the Supertext SDK; SDK error codes → plugin codes
-  supertext/languages.ts   Strapi locale → Supertext code (the SDK's LanguageCodes)
+  supertext/languages.ts   Strapi locale → Supertext code (the SDK's Languages, no guessing)
   vendor/supertext-sdk/    Supertext SDK sources (TypeScript), bundled with the server; see *Supertext SDK*
   supertext/html.ts        Pack/unpack segments into one HTML document
   supertext/blocks.ts      Strapi "blocks" inline nodes <-> HTML
@@ -65,7 +68,7 @@ Editor clicks "Translate with Supertext" (SupertextPanel)
 
 Shared with the WordPress plugin and every other Supertext plugin, and done by the Supertext SDK:
 
-1. `POST {base}translate/ai/file` — multipart: `file` (part type exactly `text/html`, no charset, else 415), `target_lang` (regional code, e.g. `de-CH`), optional `source_lang` (bare language, e.g. `en`; see *Language codes*), optional `politeness` (`more`/`less`) → `{ file_id }`
+1. `POST {base}translate/ai/file` — multipart: `file` (part type exactly `text/html`, no charset, else 415), `target_lang` (a Supertext target code, e.g. `de-CH`, `es`), optional `source_lang` (bare language, e.g. `en`; see *Language codes*), optional `politeness` (`more`/`less`) → `{ file_id }`
 2. `GET …/{file_id}/status` until `done` (`error`, `limit_exceeded`, `deleted` are terminal)
 3. `GET …/{file_id}/translation` → translated HTML
 4. `DELETE …/{file_id}`, also after errors (files also expire after 24 h)
@@ -76,20 +79,32 @@ Header: `Authorization: Supertext-Auth-Key <key>`. The key may be configured wit
 
 ### Supertext SDK
 
-All Supertext calls go through the [Supertext SDK](https://github.com/Supertext/Supertext-API-SDK-and-Guide) (`sdk/typescript`), the shared client of all Supertext plugins. Its TypeScript sources are copied into `server/src/vendor/supertext-sdk/` and bundled into `dist/server` by `strapi-plugin build`, so sites install nothing besides the plugin; `COMMIT` and `VERSION` name the SDK commit and version (the server's `tsconfig.json` uses `lib: ES2022` for them). Never edit the copy: fix the SDK repository and copy it again with `scripts/vendor-sdk.sh [commit-or-tag]` (or `SDK_DIR=<clone> scripts/vendor-sdk.sh`), then run tests, type checks and the build, and note the update in `CHANGELOG.md`.
+All Supertext calls go through the [Supertext SDK](https://github.com/Supertext/Supertext-API-SDK-and-Guide) (`sdk/typescript`), the shared client of all Supertext plugins. Its TypeScript sources (`index.ts`, `version.ts` and the API version folder `v1/`; the plugin imports `vendor/supertext-sdk/v1/index`) are copied into `server/src/vendor/supertext-sdk/` and bundled into `dist/server` by `strapi-plugin build`, so sites install nothing besides the plugin; `COMMIT` and `VERSION` name the SDK commit and version (the server's `tsconfig.json` uses `lib: ES2022` for them). Never edit the copy: fix the SDK repository and copy it again with `scripts/vendor-sdk.sh [commit-or-tag]` (or `SDK_DIR=<clone> scripts/vendor-sdk.sh`), then run tests, type checks and the build, and note the update in `CHANGELOG.md`.
 
-`server/src/supertext/client.ts` wraps the SDK client and maps the SDK's error codes to the plugin's own (`error.<code>` in the admin translations): `missing_api_key` → `notConfigured`, `authentication_failure` → `authFailed`, `invalid_language_pair` → `invalidLanguagePair` (detail: the codes sent), `not_found` → `notFound`, `payload_too_large` → `tooLarge`, `too_many_requests` → `rateLimited`, `service_unavailable` → `unavailable`, `unexpected_status` → `http`, `transport_error` → `unreachable`, `no_file_id` → `noFileId`, `translation_error` → `failed`, `quota_exceeded` → `limitExceeded`, `file_deleted` → `fileDeleted`, `timeout` → `timeout`, `incomplete_response` → `emptyTranslation`. The API key never appears in messages.
+`server/src/supertext/client.ts` wraps the SDK client and maps the SDK's error codes to the plugin's own (`error.<code>` in the admin translations): `missing_api_key` → `notConfigured`, `authentication_failure` → `authFailed`, `invalid_language_pair` → `invalidLanguagePair` (detail: the codes sent), `unsupported_language` → `unsupportedLanguage` and `unsupported_feature` → `unsupportedFeature` (value `language`: the Strapi locale), `not_found` → `notFound`, `payload_too_large` → `tooLarge`, `too_many_requests` → `rateLimited`, `service_unavailable` → `unavailable`, `unexpected_status` → `http`, `transport_error` → `unreachable`, `no_file_id` → `noFileId`, `translation_error` → `failed`, `quota_exceeded` → `limitExceeded`, `file_deleted` → `fileDeleted`, `timeout` → `timeout`, `incomplete_response` → `emptyTranslation`. The API key never appears in messages.
 
 ### Language codes
 
-Supertext's rule (from testing the live API): **source = bare language** (`en`, `de`), **target = regional code** (`de-DE`, `fr-CH`, `en-US`). A regional source or a bare target is rejected with `INVALID_LANGUAGE_PAIR`. Translating within one language (source `en`, target `en-GB`) is allowed.
+Supertext accepts exactly the codes its `GET features` lists (the SDK's `Languages`, from the live API): bare sources (`en`, `de`); targets in one exact form each, regional for German, English, French, Italian and Portuguese (`de-CH`, `en-US`, `pt-BR`), with a script for Chinese and Serbian (`zh-Hans`, `sr-Latn`), a dialect for Swiss German (`gsw-u-sd-chzh`), bare for the others (`es`, `nl`, `sl`). Anything else is HTTP 404 `INVALID_LANGUAGE_PAIR`; formal/informal for a target without it (`en-US`, `rm`, …) is HTTP 400 `FEATURE_ERROR` (`unsupported_feature`). No pair within one language.
 
-`server/src/supertext/languages.ts` turns Strapi locale codes into Supertext codes with the SDK's `LanguageCodes` (the settings page uses the same function for its *Sent to Supertext as* column):
+`server/src/supertext/languages.ts` turns Strapi locales into Supertext codes with the SDK's `Languages`, **without guessing**. The language mapping is the existing `locales.<locale>.code` option (its meaning changed in SDK 0.2.0: it no longer overrides a default region, there is none):
 
-- `targetCode(locale, code)`: the `locales.<locale>.code` setting wins, else the locale. The code is normalized (`de_ch`/`de-ch` → `de-CH`; scripts and numeric regions keep their form: `zh-Hant`, `es-419`). A bare language gets its default region from the SDK's `DEFAULT_REGIONS` (de→de-DE, en→en-US, fr→fr-FR, it→it-IT, pt→pt-PT, zh→zh-CN, …; the same table in every Supertext plugin). Unknown bare codes are sent unchanged, so Supertext's error names them.
-- `sourceCode(locale, code)`: the language of the source locale's `code` setting or of the locale (`en-US` → `en`).
+- `targetCode(locale, code)`: the `code` option wins (sent as it is, so a language Supertext adds later works before the SDK lists it); else a locale that equals a Supertext code apart from case and `_`/`-` (`de-CH`, `fr_ch` → `fr-CH`, `es`); else `SupertextError('unsupportedLanguage', { language })`, which the translator reports for that locale without calling Supertext. `de` must be mapped (to `de-DE`, `de-CH` or `de-AT`).
+- `sourceCode(locale, code)`: the bare language of the `code` option or of the locale (`en-US` → `en`, `de-CH` → `de`), else `unsupportedLanguage`.
+- `politenessFor(target, politeness)`: `more`/`less` for a target where `Languages.supportsPoliteness()` is false is `unsupportedFeature` before anything is sent (never dropped silently); targets the SDK doesn't list get it as configured.
+- `GET /supertext/status` lists every Strapi locale (i18n's `locales` service) with its code (`target: null` = not mapped) and whether the tone is offered; the settings page marks *Not mapped* and a tone the target lacks.
 
-The mock API (`test/mock-supertext.mjs`) rejects bare targets and regional sources like the real API.
+The mock APIs (`test/mock-supertext.mjs`, `test/mock-sample-de.mjs`) accept exactly the live target list and bare sources (404 `INVALID_LANGUAGE_PAIR` otherwise) and reject politeness where it isn't offered.
+
+### Commando Center: version reports, key check, ping
+
+Protocol: [Commando-Center-Supertext-Translation](https://github.com/Supertext/Commando-Center-Supertext-Translation) → `docs/DEVELOPER.md` → *Report protocol*; the SDK's `InstallationReporter`, `checkApiKey()` and `pingResponse()` implement it, `server/src/reporting.ts` only supplies what Strapi knows (no Strapi imports there; `services/reporting.ts` wires it to Strapi):
+
+- **Setting:** `versionReports` in the plugin config (default `true`), combined with `SUPERTEXT_VERSION_REPORTS` by the SDK's `reportsEnabled()` (the environment wins). Off: no reports, ping 404. `SUPERTEXT_REPORT_URL` sends reports elsewhere (tests, the mocks' `POST /report`).
+- **Report fields:** `site_url` = `server.url` if absolute, else the admin request's origin (`ctx.request.origin`; the demo sets `proxy: true`); plugin `Strapi-Supertext-Translation` with the version from `package.json` (`version.ts`); system `Strapi` with `strapi.config.get('info.strapi')`; `callback.url` = `<site><api.rest.prefix>/supertext/ping`.
+- **When:** the config lives in `config/plugins`, so there is no `settings_saved`. `onRequest` runs in the background on `GET /supertext/status` (settings page and editor panel) and after `POST /supertext/translate` (reports `installed`, `upgraded` or `api_key_check`; checks the key only when its fingerprint changed); `POST /supertext/test-connection` runs `testConnection` and waits for it; a locale that failed with `authFailed` runs `authenticationFailed` with Supertext's HTTP status. Calls are serialized per process. Nothing here ever throws into a request.
+- **State:** the reporter's JSON in Strapi's core store (`strapi.store`, type `plugin`, name `supertext`, key `reporter` → row `plugin_supertext_reporter` in `strapi_core_store_settings`). It holds the key's SHA-256 fingerprint, never the key.
+- **Ping:** content API route `GET /ping` with `auth: false` → `/api/supertext/ping`; status, headers (`Cache-Control: no-store`) and body exactly as `pingResponse()` returns them. Strapi has no page cache.
 
 ## Admin API
 
@@ -97,8 +112,10 @@ All routes require an authenticated admin (`admin::isAuthenticatedAdmin`).
 
 | Route | Purpose |
 | --- | --- |
-| `GET /supertext/status` | `{ configured, endpoint, locales, contentTypes, version }` (never the key; `version` is read from the plugin's `package.json` at runtime) |
-| `POST /supertext/test-connection` | Validates the key (`GET features`, no cost) |
+| `GET /supertext/status` | `{ configured, endpoint, locales, contentTypes, version, languages: [{ code, name, target, politeness, politenessSupported }], reports: { enabled, check } }` (never the key; `version` is read from the plugin's `package.json` at runtime; `check` is the latest key check `{ status, checkedAt, httpStatus, errorCode, fingerprint }`) |
+| `POST /supertext/test-connection` | The SDK's key check (`GET features`, no cost) → `{ ok, check }` with `check.status` `ok`, `invalid`, `missing`, `unreachable` or `error`. Always HTTP 200 (a 401 would sign the admin out); the page shows `keycheck.<status>` |
+
+Public (content API, no login): `GET /api/supertext/ping?challenge=<16–64 of A-Z a-z 0-9 _ ->` → 200 `{ ok: true, plugin: "Strapi-Supertext-Translation", challenge }`, 400 `{ ok: false }` for any other challenge, 404 with version reports off.
 | `GET /supertext/locales?model=&documentId=` | Locales that exist for a document |
 | `POST /supertext/translate` | See above |
 
@@ -112,7 +129,7 @@ npm run test:ts:front    # type-check admin
 npm run build            # dist/ via @strapi/sdk-plugin
 
 # Run the demo against the mock API
-npm run mock &           # http://localhost:8765/v1/, key "test-key"
+npm run mock &           # http://localhost:8765/v1/, key "test-key"; POST /report stands in for the center
 cp demo/.env.example demo/.env
 npm run demo:install     # build + pack the plugin, install it into demo/
 cd demo && npm run develop
@@ -138,7 +155,10 @@ Server errors are English (`message`, for logs and API clients) and carry a `cod
 | `test/blocks.test.ts` | Blocks inline ↔ HTML (marks, links, line breaks) |
 | `test/extract.test.ts` | Field selection, copying, ids, dynamic zones, populate tree |
 | `test/client.test.ts` | The plugin's client on the SDK: call sequence, form fields, key prefix, 429 retries, error codes, cleanup (the SDK's own tests run in the SDK repository) |
-| `test/translations.test.ts` | All four admin languages have the same keys, placeholders, tags and URLs; every key and server error code has an English message |
+| `test/translations.test.ts` | All four admin languages have the same keys, placeholders, tags and URLs; every key, server error code and key check result has an English message |
+| `test/languages.test.ts` | Locale → Supertext code: exact matches, the `code` mapping, `unsupportedLanguage` for `de`, `es-ES`, `zh-CN`; bare sources; formal/informal only where offered |
+| `test/status.test.ts` | Version from `package.json`, status without the key, the locale list with unmapped locales |
+| `test/reporting.test.ts` | The setting and the environment, site URL, state kept in the store (never the key), one `installed` report, a changed key checked again, a 401 reported once as `api_key_check`, *Test connection*, nothing sent with reports off, ping answers, no exception when the store fails (fake fetch, never the live API or center) |
 
 CI (`.github/workflows/ci.yml`) runs type checks, tests and the build on Node 20 and 22, then builds the demo admin panel with the packed plugin.
 
@@ -152,7 +172,8 @@ The screenshots in `docs/images/` come from the local demo and are regenerated w
 npm run docs:mock &        # stand-in API that returns real German for the sample article
 npm run demo:install
 cd demo && rm -rf .tmp && DEMO_ADMIN_EMAIL=anna.muster@example.com DEMO_ADMIN_PASSWORD=Docs12345 \
-  SUPERTEXT_API_KEY=test-key SUPERTEXT_API_ENDPOINT=http://127.0.0.1:8765/v1/ npm run develop &
+  SUPERTEXT_API_KEY=test-key SUPERTEXT_API_ENDPOINT=http://127.0.0.1:8765/v1/ \
+  SUPERTEXT_REPORT_URL=http://127.0.0.1:8765/report npm run develop &
 cd .. && npx playwright install chromium   # once
 npm run docs:screenshots
 ```

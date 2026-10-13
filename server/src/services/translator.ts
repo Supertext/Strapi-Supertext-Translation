@@ -2,7 +2,7 @@ import type { Core } from '@strapi/strapi';
 import type { PluginConfig } from '../config';
 import { MAX_DOCUMENT_CHARACTERS, SupertextClient, SupertextError } from '../supertext/client';
 import { buildDocument, parseDocument, type Segment } from '../supertext/html';
-import { sourceCode, targetCode } from '../supertext/languages';
+import { politenessFor, sourceCode, supportsPoliteness, targetCode, targetCodeOrNull } from '../supertext/languages';
 import { pluginVersion } from '../version';
 import { extract, populateFor, type Attributes, type Job, type SchemaLookup } from './extract';
 
@@ -21,6 +21,18 @@ export interface LocaleResult {
   /** Message key for the admin panel (`error.<code>`), with its placeholder values. */
   code?: string;
   values?: Record<string, string | number>;
+  /** Supertext's HTTP status for a failed locale (401/403: the key was rejected). */
+  httpStatus?: number;
+}
+
+export interface LanguageStatus {
+  code: string;
+  name: string;
+  /** The Supertext code it is sent as; null = not mapped (translating into it fails with unsupportedLanguage). */
+  target: string | null;
+  politeness: 'default' | 'more' | 'less';
+  /** Whether the target offers formal/informal (null: not mapped or not in the SDK's list). */
+  politenessSupported: boolean | null;
 }
 
 /** See SupertextError: `code`/`values` are translated in the admin panel, `message` is English. */
@@ -89,14 +101,15 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
     }
     if (current.length) chunks.push(current);
 
+    // Resolved before anything is sent: an unmapped locale or a tone the target lacks sends nothing.
+    const targetLanguage = targetCode(targetLocale, options.code);
+    const sourceLanguage = sourceCode(sourceLocale, config().locales[sourceLocale]?.code);
+    const politeness = politenessFor(targetLanguage, options.politeness, targetLocale);
+
     let applied = 0;
     for (const chunk of chunks) {
       const segments: Segment[] = chunk.map((job) => job.segment);
-      const translated = await api.translateDocument(buildDocument(segments), {
-        targetLanguage: targetCode(targetLocale, options.code),
-        sourceLanguage: sourceCode(sourceLocale, config().locales[sourceLocale]?.code),
-        politeness: options.politeness ?? 'default',
-      });
+      const translated = await api.translateDocument(buildDocument(segments), { targetLanguage, sourceLanguage, politeness });
       const parsed = parseDocument(translated, segments);
       chunk.forEach((job, index) => {
         const value = parsed.get(index);
@@ -110,13 +123,27 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
   }
 
   return {
+    /** Configuration for the settings page and the panel (never the key). */
     status() {
       const { apiKey, endpoint, locales, contentTypes } = config();
       return { configured: Boolean(apiKey), endpoint, locales, contentTypes, version: pluginVersion() };
     },
 
-    async testConnection() {
-      await client().validate();
+    /** Every Strapi locale with the Supertext code it is sent as (null: not mapped) and its tone. */
+    async languages(): Promise<LanguageStatus[]> {
+      const { locales } = config();
+      let rows: { code: string; name?: string }[] = [];
+      try {
+        rows = (await strapi.plugin('i18n')?.service('locales')?.find()) ?? [];
+      } catch (error) {
+        strapi.log.debug(`[supertext] Could not read the locales: ${(error as Error).message}`);
+      }
+      return rows.map(({ code, name }) => {
+        const options = locales[code] ?? {};
+        const target = targetCodeOrNull(code, options.code);
+        const politeness = options.politeness ?? 'default';
+        return { code, name: name ?? code, target, politeness, politenessSupported: target ? supportsPoliteness(target) : null };
+      });
     },
 
     /** Locales that already exist for a document, so callers can warn before overwriting. */
@@ -182,7 +209,15 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
           strapi.log.error(`[supertext] ${uid} ${documentId} → ${locale}: ${detail}`);
           results.push(
             known
-              ? { locale, status: 'error', error: error.message, code: error.code, values: error.values }
+              ? {
+                  locale,
+                  status: 'error',
+                  error: error.message,
+                  code: error.code,
+                  // `language` for "has no Supertext language yet" and "no formal or informal tone".
+                  values: { language: locale, ...error.values },
+                  ...(error instanceof SupertextError && error.status ? { httpStatus: error.status } : {}),
+                }
               : {
                   locale,
                   status: 'error',

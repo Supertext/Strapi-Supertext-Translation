@@ -31,7 +31,7 @@ describe('SupertextClient', () => {
       return Response.json({});
     });
     const client = new SupertextClient({ apiKey: 'k', endpoint: 'https://api.test/v1', pollIntervalMs: 1, fetch: fn });
-    const html = await client.translateDocument('<div>Hi</div>', { targetLanguage: 'de-CH', sourceLanguage: 'en-US', politeness: 'more' });
+    const html = await client.translateDocument('<div>Hi</div>', { targetLanguage: 'de-CH', sourceLanguage: 'en', politeness: 'more' });
 
     expect(html).toContain('Hallo');
     expect(calls.map((c) => `${c.method} ${c.url.replace('https://api.test/v1/', '')}`)).toEqual([
@@ -109,7 +109,7 @@ describe('rate limiting', () => {
   });
 
   it('honours Retry-After', async () => {
-    const { retryDelayMs } = await import('../server/src/vendor/supertext-sdk/index');
+    const { retryDelayMs } = await import('../server/src/vendor/supertext-sdk/v1/index');
     expect(retryDelayMs(0, '3')).toBe(3000);
     expect(retryDelayMs(1, null)).toBeGreaterThanOrEqual(2000);
   });
