@@ -160,7 +160,7 @@ Server errors are English (`message`, for logs and API clients) and carry a `cod
 | `test/status.test.ts` | Version from `package.json`, status without the key, the locale list with unmapped locales |
 | `test/reporting.test.ts` | The setting and the environment, site URL, state kept in the store (never the key), one `installed` report, a changed key checked again, a 401 reported once as `api_key_check`, *Test connection*, nothing sent with reports off, ping answers, no exception when the store fails (fake fetch, never the live API or center) |
 
-CI (`.github/workflows/ci.yml`) runs type checks, tests and the build on Node 20 and 22, then builds the demo admin panel with the packed plugin.
+CI (`.github/workflows/ci.yml`) runs type checks, tests and the build on Node 20, 22 and 24, then builds the demo admin panel with the packed plugin.
 
 The end-to-end flow (translate, overwrite, permissions, error responses, admin panel UI) was verified manually against the demo and the mock API; there are no automated end-to-end tests yet.
 
