@@ -90,7 +90,7 @@ Supertext accepts exactly the codes its `GET features` lists (the SDK's `Languag
 `server/src/supertext/languages.ts` turns Strapi locales into Supertext codes with the SDK's `Languages`, **without guessing**. The language mapping is the existing `locales.<locale>.code` option (its meaning changed in SDK 0.2.0: it no longer overrides a default region, there is none):
 
 - `targetCode(locale, code)`: the `code` option wins (sent as it is, so a language Supertext adds later works before the SDK lists it); else a locale that equals a Supertext code apart from case and `_`/`-` (`de-CH`, `fr_ch` → `fr-CH`, `es`); else `SupertextError('unsupportedLanguage', { language })`, which the translator reports for that locale without calling Supertext. `de` must be mapped (to `de-DE`, `de-CH` or `de-AT`).
-- `sourceCode(locale, code)`: the bare language of the `code` option or of the locale (`en-US` → `en`, `de-CH` → `de`), else `unsupportedLanguage`.
+- `sourceCode(locale, code)`: the SDK's `Languages.source()` with the same mapping, which sends the `code` option in its source form (`de-CH` → `de`; one mapping for both directions), else the locale's language (`en-US` → `en`), else `unsupportedLanguage`.
 - `politenessFor(target, politeness)`: `more`/`less` for a target where `Languages.supportsPoliteness()` is false is `unsupportedFeature` before anything is sent (never dropped silently); targets the SDK doesn't list get it as configured.
 - `GET /supertext/status` lists every Strapi locale (i18n's `locales` service) with its code (`target: null` = not mapped) and whether the tone is offered; the settings page marks *Not mapped* and a tone the target lacks.
 

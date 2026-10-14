@@ -34,6 +34,13 @@ describe('language codes (no guessing)', () => {
     expect(sourceCode('ch', 'de-CH')).toBe('de');
   });
 
+  it('uses one mapping for both directions', () => {
+    expect(targetCode('de', 'de-CH')).toBe('de-CH');
+    expect(sourceCode('de', 'de-CH')).toBe('de');
+    expect(targetCode('en', 'en-US')).toBe('en-US');
+    expect(sourceCode('en', 'en-US')).toBe('en');
+  });
+
   it('knows which targets offer formal/informal and never drops a setting silently', () => {
     expect(supportsPoliteness('de-CH')).toBe(true);
     expect(supportsPoliteness('en-US')).toBe(false);

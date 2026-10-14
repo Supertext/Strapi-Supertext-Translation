@@ -34,11 +34,12 @@ export function targetCodeOrNull(locale: string, override?: string): string | nu
 }
 
 /**
- * Source code: the bare language of the configured `code` or of the locale (`en-US` → `en`,
- * `de-CH` → `de`), else `unsupportedLanguage`. Empty = auto-detect.
+ * Source code: the SDK's `Languages.source()` with the same mapping, so one `code` serves both
+ * directions (`de-CH` → `de`); else the locale's language (`en-US` → `en`), else
+ * `unsupportedLanguage`. Empty = auto-detect.
  */
 export function sourceCode(locale: string, override?: string): string {
-  return plugin(() => Languages.source(override || locale || ''));
+  return plugin(() => Languages.source(locale || '', override ? { [locale]: override } : undefined));
 }
 
 /** Whether Supertext offers formal/informal for a target code (null: a code not in the SDK's list). */

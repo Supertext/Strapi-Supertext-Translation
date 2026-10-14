@@ -27,7 +27,7 @@ Each Strapi locale needs a Supertext language. Supertext accepts exactly these t
 | All others, without region | `bg`, `cs`, `da`, `el`, `es`, `fi`, `hr`, `hu`, `ja`, `ko`, `nb`, `nl`, `pl`, `rm`, `ru`, `sk`, `sl`, `sq`, `sv`, `tr` |
 
 - A Strapi locale that **is** one of these codes (apart from upper/lower case and `_`/`-`) is used as it is: `de-CH`, `fr_ch`, `es`. The source language is sent without region (`en-US` → `en`).
-- **Every other locale needs a `code`** in the plugin's `locales` setting (the language mapping, see [All settings](#all-settings)), e.g. `de: { code: 'de-CH' }`, `en: { code: 'en-US' }`, `zh-CN: { code: 'zh-Hans' }`. The plugin never guesses a region: an unmapped locale gets the message *has no Supertext language yet* and nothing is sent for it. Strapi's default locale `en` is one of them; as a source it works without a mapping (sources are bare).
+- **Every other locale needs a `code`** in the plugin's `locales` setting (the language mapping, see [All settings](#all-settings)), e.g. `de: { code: 'de-CH' }`, `en: { code: 'en-US' }`, `zh-CN: { code: 'zh-Hans' }`. The plugin never guesses a region: an unmapped locale gets the message *has no Supertext language yet* and nothing is sent for it. Strapi's default locale `en` is one of them; as a source it works without a mapping (sources are bare). One `code` serves both directions: with `en: { code: 'en-US' }`, English is translated into `en-US` and from `en`.
 - Formal/informal (`politeness`) isn't offered for English, Swiss German, Romansh, Albanian and Serbian; leave those on `default`, otherwise translating into them fails with *no formal or informal tone*.
 
 The settings page shows the code each locale is sent as, and *Not mapped* for locales that still need a `code`.
