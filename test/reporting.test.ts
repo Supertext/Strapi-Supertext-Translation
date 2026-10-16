@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { absoluteUrl, Reporting, siteUrl, versionReportsEnabled, type ReportingSettings } from '../server/src/reporting';
 import { pluginVersion } from '../server/src/version';
+import { SDK_VERSION } from '../server/src/vendor/supertext-sdk/index';
 
 /** The core store, in memory (Strapi serializes the value as JSON). */
 function memoryStorage() {
@@ -36,7 +37,8 @@ function reporting(settings: ReportingSettings, f = fakeFetch(), storage = memor
     strapiVersion: () => '5.57.0',
     apiPrefix: () => '/api',
     logger,
-    reporterOverrides: { fetch: f.fetch, reportUrl: 'https://center.test/api/v1/report', clientOptions: { fetch: f.fetch, baseUrl: 'https://api.test/v1/' } },
+    reporterOverrides: { fetch: f.fetch, reportUrl: 'https://center.test/api/v1/report' },
+    clientOverrides: { fetch: f.fetch, baseUrl: 'https://api.test/v1/' },
   });
 }
 
@@ -72,6 +74,7 @@ describe('Reporting', () => {
       plugin: { name: 'Strapi-Supertext-Translation', version: pluginVersion() },
       system: { name: 'Strapi', version: '5.57.0' },
       runtime: { name: 'Node.js' },
+      sdk_version: SDK_VERSION,
       api_key_configured: true,
       api_key_check: { status: 'ok', http_status: 200 },
       callback: { url: 'https://cms.example.ch/api/supertext/ping' },

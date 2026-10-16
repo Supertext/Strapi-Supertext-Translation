@@ -18,14 +18,16 @@ server/src/                Server (Koa) part
   controllers/translate.ts Permission checks, request handling, when the reporter runs
   services/translator.ts   Orchestration: load source, translate per locale, save; locale → code list
   services/reporting.ts    one Reporting per process: state in the core store, Strapi version, REST prefix
-  reporting.ts             Commando Center: version reports, API key check, ping (the SDK's InstallationReporter)
+  reporting.ts             Commando Center: version reports, API key check, ping (Plugin Health's InstallationReporter + the SDK's key check)
   services/extract.ts      Pure schema walk: data for the target + text segments
   supertext/client.ts      the plugin's Supertext client on top of the Supertext SDK; SDK error codes → plugin codes
   supertext/languages.ts   Strapi locale → Supertext code (the SDK's Languages, no guessing)
   vendor/supertext-sdk/    Supertext SDK sources (TypeScript), bundled with the server; see *Supertext SDK*
+  vendor/supertext-plugin-health/  Supertext Plugin Health sources (TypeScript), bundled with the server; see *Supertext Plugin Health*
   supertext/html.ts        Pack/unpack segments into one HTML document
   supertext/blocks.ts      Strapi "blocks" inline nodes <-> HTML
 scripts/vendor-sdk.sh      updates server/src/vendor/supertext-sdk
+scripts/vendor-plugin-health.sh  updates server/src/vendor/supertext-plugin-health
 test/                      Vitest unit tests + mock Supertext API
 demo/                      Strapi 5 demo app (Article type, Swiss locales, sample entry)
 Dockerfile, railway.json   Demo image for Railway
@@ -79,7 +81,7 @@ Header: `Authorization: Supertext-Auth-Key <key>`. The key may be configured wit
 
 ### Supertext SDK
 
-All Supertext calls go through the [Supertext SDK](https://github.com/Supertext/Supertext-API-SDK-and-Guide) (`sdk/typescript`), the shared client of all Supertext plugins. Its TypeScript sources (`index.ts`, `version.ts` and the API version folder `v1/`; the plugin imports `vendor/supertext-sdk/v1/index`) are copied into `server/src/vendor/supertext-sdk/` and bundled into `dist/server` by `strapi-plugin build`, so sites install nothing besides the plugin; `COMMIT` and `VERSION` name the SDK commit and version (the server's `tsconfig.json` uses `lib: ES2022` for them). Never edit the copy: fix the SDK repository and copy it again with `scripts/vendor-sdk.sh [commit-or-tag]` (or `SDK_DIR=<clone> scripts/vendor-sdk.sh`), then run tests, type checks and the build, and note the update in `CHANGELOG.md`.
+All Supertext calls go through the [Supertext SDK](https://github.com/Supertext/Supertext-API-SDK-and-Guide) (`sdk/typescript`), the shared client of all Supertext plugins: it provides the API client and the API key check (`checkApiKey()`, `apiKeyFingerprint()`, `SDK_VERSION`); version reports are Supertext Plugin Health's (below). Its TypeScript sources (`index.ts`, `version.ts` and the API version folder `v1/`; the plugin imports `vendor/supertext-sdk/v1/index`) are copied into `server/src/vendor/supertext-sdk/` and bundled into `dist/server` by `strapi-plugin build`, so sites install nothing besides the plugin; `COMMIT` and `VERSION` name the SDK commit and version (the server's `tsconfig.json` uses `lib: ES2022` for them). Never edit the copy: fix the SDK repository and copy it again with `scripts/vendor-sdk.sh [commit-or-tag]` (or `SDK_DIR=<clone> scripts/vendor-sdk.sh`), then run tests, type checks and the build, and note the update in `CHANGELOG.md`.
 
 `server/src/supertext/client.ts` wraps the SDK client and maps the SDK's error codes to the plugin's own (`error.<code>` in the admin translations): `missing_api_key` → `notConfigured`, `authentication_failure` → `authFailed`, `invalid_language_pair` → `invalidLanguagePair` (detail: the codes sent), `unsupported_language` → `unsupportedLanguage` and `unsupported_feature` → `unsupportedFeature` (value `language`: the Strapi locale), `not_found` → `notFound`, `payload_too_large` → `tooLarge`, `too_many_requests` → `rateLimited`, `service_unavailable` → `unavailable`, `unexpected_status` → `http`, `transport_error` → `unreachable`, `no_file_id` → `noFileId`, `translation_error` → `failed`, `quota_exceeded` → `limitExceeded`, `file_deleted` → `fileDeleted`, `timeout` → `timeout`, `incomplete_response` → `emptyTranslation`. The API key never appears in messages.
 
@@ -96,14 +98,18 @@ Supertext accepts exactly the codes its `GET features` lists (the SDK's `Languag
 
 The mock APIs (`test/mock-supertext.mjs`, `test/mock-sample-de.mjs`) accept exactly the live target list and bare sources (404 `INVALID_LANGUAGE_PAIR` otherwise) and reject politeness where it isn't offered.
 
+### Supertext Plugin Health
+
+[Supertext Plugin Health](https://github.com/Supertext/Commando-Center-Supertext-Translation/tree/main/plugin-health) (`plugin-health/typescript`, in the Commando Center repository) sends the version reports and the API key check result to the Supertext Commando Center and answers its reachability ping (`InstallationReporter`, `reportsEnabled()`, `reporterState()`, `pingResponse()`). It has no dependencies and doesn't call Supertext itself: `server/src/reporting.ts` passes it the SDK's version (`SDK_VERSION`) and a key checker built on the SDK (`{ check: (key) => new SupertextClient(key, …).checkApiKey(), fingerprint: apiKeyFingerprint }`). Its TypeScript sources (`index.ts`) are copied into `server/src/vendor/supertext-plugin-health/` and bundled into `dist/server` like the SDK; `COMMIT` and `VERSION` name the commit and version. Never edit the copy: fix it in Commando-Center-Supertext-Translation/plugin-health and copy it again with `scripts/vendor-plugin-health.sh <tag>` (e.g. `plugin-health-v0.1.0`; or `PLUGIN_HEALTH_DIR=<clone> scripts/vendor-plugin-health.sh`), then run tests, type checks and the build, and note the update in `CHANGELOG.md`.
+
 ### Commando Center: version reports, key check, ping
 
-Protocol: [Commando-Center-Supertext-Translation](https://github.com/Supertext/Commando-Center-Supertext-Translation) → `docs/DEVELOPER.md` → *Report protocol*; the SDK's `InstallationReporter`, `checkApiKey()` and `pingResponse()` implement it, `server/src/reporting.ts` only supplies what Strapi knows (no Strapi imports there; `services/reporting.ts` wires it to Strapi):
+Protocol: [Commando-Center-Supertext-Translation](https://github.com/Supertext/Commando-Center-Supertext-Translation) → `docs/DEVELOPER.md` → *Report protocol*; Plugin Health's `InstallationReporter` and `pingResponse()` and the SDK's `checkApiKey()` implement it, `server/src/reporting.ts` only supplies what Strapi knows (no Strapi imports there; `services/reporting.ts` wires it to Strapi):
 
-- **Setting:** `versionReports` in the plugin config (default `true`), combined with `SUPERTEXT_VERSION_REPORTS` by the SDK's `reportsEnabled()` (the environment wins). Off: no reports, ping 404. `SUPERTEXT_REPORT_URL` sends reports elsewhere (tests, the mocks' `POST /report`).
+- **Setting:** `versionReports` in the plugin config (default `true`), combined with `SUPERTEXT_VERSION_REPORTS` by Plugin Health's `reportsEnabled()` (the environment wins). Off: no reports, ping 404. `SUPERTEXT_REPORT_URL` sends reports elsewhere (tests, the mocks' `POST /report`).
 - **Report fields:** `site_url` = `server.url` if absolute, else the admin request's origin (`ctx.request.origin`; the demo sets `proxy: true`); plugin `Strapi-Supertext-Translation` with the version from `package.json` (`version.ts`); system `Strapi` with `strapi.config.get('info.strapi')`; `callback.url` = `<site><api.rest.prefix>/supertext/ping`.
 - **When:** the config lives in `config/plugins`, so there is no `settings_saved`. `onRequest` runs in the background on `GET /supertext/status` (settings page and editor panel) and after `POST /supertext/translate` (reports `installed`, `upgraded` or `api_key_check`; checks the key only when its fingerprint changed); `POST /supertext/test-connection` runs `testConnection` and waits for it; a locale that failed with `authFailed` runs `authenticationFailed` with Supertext's HTTP status. Calls are serialized per process. Nothing here ever throws into a request.
-- **State:** the reporter's JSON in Strapi's core store (`strapi.store`, type `plugin`, name `supertext`, key `reporter` → row `plugin_supertext_reporter` in `strapi_core_store_settings`). It holds the key's SHA-256 fingerprint, never the key.
+- **State:** the reporter's JSON (`reporterState()`; the same format the SDK 0.2 reporter stored, so updating sends no new `installed`) in Strapi's core store (`strapi.store`, type `plugin`, name `supertext`, key `reporter` → row `plugin_supertext_reporter` in `strapi_core_store_settings`). It holds the key's SHA-256 fingerprint, never the key.
 - **Ping:** content API route `GET /ping` with `auth: false` → `/api/supertext/ping`; status, headers (`Cache-Control: no-store`) and body exactly as `pingResponse()` returns them. Strapi has no page cache.
 
 ## Admin API

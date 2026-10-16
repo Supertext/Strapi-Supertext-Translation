@@ -1,9 +1,10 @@
 /**
  * Version reports to the Supertext Commando Center, the automatic API key check and the
  * callback ping (Commando-Center-Supertext-Translation → docs/DEVELOPER.md → Report protocol).
- * The protocol is the SDK's (`InstallationReporter`, `pingResponse`); this file only gives it
- * what Strapi knows: the site URL, the Strapi and plugin versions, and a place to keep the
- * reporter's state (Strapi's core store, `plugin_supertext_reporter`).
+ * The protocol is Supertext Plugin Health's (`InstallationReporter`, `pingResponse`, bundled in
+ * vendor/supertext-plugin-health); the key check is the Supertext SDK's (`checkApiKey()`). This file
+ * only gives them what Strapi knows: the site URL, the Strapi and plugin versions, and a place to
+ * keep the reporter's state (Strapi's core store, `plugin_supertext_reporter`).
  *
  * The plugin is configured in config/plugins (key from SUPERTEXT_API_KEY), so there is no
  * "settings saved": the key check runs when the key changed (fingerprint), on "Test connection"
@@ -14,12 +15,15 @@ import {
   pingResponse,
   reporterState,
   reportsEnabled,
-  type ApiKeyCheck,
+  type KeyCheck,
+  type KeyChecker,
   type PingResponse,
   type ReporterOptions,
   type ReporterResult,
   type ReporterState,
-} from './vendor/supertext-sdk/v1/index';
+} from './vendor/supertext-plugin-health/index';
+import { SDK_VERSION } from './vendor/supertext-sdk/index';
+import { apiKeyFingerprint, SupertextClient, type SupertextClientOptions } from './vendor/supertext-sdk/v1/index';
 import { LIVE_ENDPOINT, USER_AGENT } from './supertext/client';
 import { pluginVersion } from './version';
 
@@ -50,8 +54,10 @@ export interface ReportingContext {
   /** Strapi's REST prefix (`api.rest.prefix`, default `/api`). */
   apiPrefix: () => string;
   logger: { debug(message: string): void };
-  /** For tests: options passed to the SDK reporter (fetch, report URL, clock, client options). */
+  /** For tests: options passed to the Plugin Health reporter (fetch, report URL, clock). */
   reporterOverrides?: Partial<ReporterOptions>;
+  /** For tests: options passed to the SDK client that checks the key (fetch, base URL). */
+  clientOverrides?: SupertextClientOptions;
 }
 
 export type ReporterAction = 'onRequest' | 'testConnection' | 'authenticationFailed';
@@ -87,7 +93,7 @@ export class Reporting {
     }
   }
 
-  /** The ping route's answer (status, headers and body exactly as the SDK gives them). */
+  /** The ping route's answer (status, headers and body exactly as Plugin Health gives them). */
   ping(challenge: unknown): PingResponse {
     return pingResponse(typeof challenge === 'string' ? challenge : null, { plugin: PLUGIN_NAME, enabled: this.enabled });
   }
@@ -100,10 +106,17 @@ export class Reporting {
       siteUrl: url,
       plugin: { name: PLUGIN_NAME, version: pluginVersion() ?? '0.0.0' },
       system: { name: 'Strapi', version: this.ctx.strapiVersion() },
+      sdkVersion: SDK_VERSION,
       callbackUrl: `${url}${prefix}${PING_PATH}`,
-      clientOptions: { baseUrl: settings.endpoint || LIVE_ENDPOINT, userAgent: USER_AGENT },
+      keyChecker: this.keyChecker(settings),
       ...this.ctx.reporterOverrides,
     });
+  }
+
+  /** The SDK's key check (`GET features`) against the configured endpoint. */
+  keyChecker(settings: ReportingSettings): KeyChecker {
+    const options: SupertextClientOptions = { baseUrl: settings.endpoint || LIVE_ENDPOINT, userAgent: USER_AGENT, ...this.ctx.clientOverrides };
+    return { check: (key) => new SupertextClient(key, options).checkApiKey(), fingerprint: apiKeyFingerprint };
   }
 
   async #load(): Promise<ReporterState> {
@@ -142,7 +155,7 @@ export class Reporting {
   }
 
   /** The latest stored key check (for the settings page), or null. */
-  async lastCheck(): Promise<ApiKeyCheck | null> {
+  async lastCheck(): Promise<KeyCheck | null> {
     try {
       return (await this.#load()).keyCheck;
     } catch {
