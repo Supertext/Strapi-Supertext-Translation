@@ -77,7 +77,7 @@ The user guide and installation guide of every plugin include screenshots of the
 
 AI file translation API v1, same as the WordPress plugin: POST HTML file → poll status → GET translation → DELETE. Details in `docs/DEVELOPER.md`. Never commit API keys; use the `SUPERTEXT_API_KEY` environment variable or the CMS's settings.
 
-**Languages:** only the codes Supertext's `GET features` lists (the SDK's `Languages`, `vendor/supertext-sdk/v1`): bare sources (`en`); targets regional only for de/en/fr/it/pt (`de-CH`, `en-US`), `zh-Hans`/`zh-Hant`, `sr-Latn`/`sr-Cyrl`, `gsw-u-sd-chzh`/`chbe`, bare for the rest (`es`, `nl`, `sl`). **No guessing:** the plugin's mapping (`locales.<locale>.code`), else an exact match, else the error `unsupportedLanguage`. No default regions; see `docs/DEVELOPER.md` → *Language codes*.
+**Languages:** only the codes Supertext's `GET features` lists (the SDK's `Languages`, `vendor/supertext-sdk/v1`): bare sources (`en`); targets regional only for de/en/fr/it/pt (`de-CH`, `en-US`), `zh-Hans`/`zh-Hant`, `sr-Latn`/`sr-Cyrl`, `gsw-u-sd-chzh`/`chbe`, bare for the rest (`es`, `nl`, `sl`). **Defaults only where obvious:** the plugin's mapping (a design-system SingleSelect per Strapi locale under *Settings → Supertext → Translation*, stored in the core store, `suggestTarget` preselected; `locales.<locale>.code` in config/plugins overrides it), else an exact match, else the SDK default (de→de-DE, en→en-US, fr→fr-FR, it→it-IT, pt→pt-PT, zh-CN→zh-Hans, zh-TW→zh-Hant, es-ES→es …), else the error `unsupportedLanguage` (en-IE, de-LI, gsw need a mapping); see `docs/DEVELOPER.md` → *Language codes*.
 
 ## Strapi specifics
 

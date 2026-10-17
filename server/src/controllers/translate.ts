@@ -3,6 +3,8 @@ import { TranslationError, type TranslatorService } from '../services/translator
 import { SupertextClient, SupertextError } from '../supertext/client';
 import { siteUrl } from '../reporting';
 import type { ReportingService } from '../services/reporting';
+import type { SettingsService } from '../services/settings';
+import { InvalidSettingsError } from '../language-settings';
 
 type Ctx = {
   request: { body?: Record<string, unknown>; origin?: string };
@@ -18,6 +20,7 @@ type Ctx = {
 const controller = ({ strapi }: { strapi: Core.Strapi }) => {
   const translator = () => strapi.plugin('supertext').service('translator') as TranslatorService;
   const reporting = () => strapi.plugin('supertext').service('reporting') as ReportingService;
+  const settings = () => strapi.plugin('supertext').service('settings') as SettingsService;
   /** The site's base URL: `server.url` if absolute, else the origin of this request. */
   const site = (ctx: Ctx) => siteUrl(strapi.config.get('server.url'), ctx.request?.origin);
 
@@ -41,7 +44,6 @@ const controller = ({ strapi }: { strapi: Core.Strapi }) => {
       reporting().inBackground('onRequest', site(ctx));
       ctx.body = {
         ...translator().status(),
-        languages: await translator().languages(),
         reports: { enabled: reporting().enabled(), check: await reporting().lastCheck() },
       };
     },
@@ -64,6 +66,25 @@ const controller = ({ strapi }: { strapi: Core.Strapi }) => {
       ctx.status = answer.status;
       ctx.set?.(answer.headers);
       ctx.body = answer.body;
+    },
+
+    /** Settings → Supertext → Languages: one row per Strapi locale and the codes for the combo boxes. */
+    async settings(ctx: Ctx) {
+      ctx.body = await settings().page();
+    },
+
+    /** Saves the combo boxes (`{ languages: { <locale>: { code, politeness } } }`), validated against Supertext's list. */
+    async saveSettings(ctx: Ctx) {
+      try {
+        ctx.body = await settings().save((ctx.request.body ?? {}).languages);
+      } catch (error) {
+        if (error instanceof InvalidSettingsError) {
+          ctx.status = 400;
+          ctx.body = { error: { message: error.message, details: { code: 'invalidSettings', values: error.values } } };
+          return;
+        }
+        throw error;
+      }
     },
 
     async locales(ctx: Ctx) {

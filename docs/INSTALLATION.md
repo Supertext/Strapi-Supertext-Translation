@@ -26,11 +26,28 @@ Each Strapi locale needs a Supertext language. Supertext accepts exactly these t
 | Swiss German | `gsw-u-sd-chzh` (Zurich), `gsw-u-sd-chbe` (Bern) |
 | All others, without region | `bg`, `cs`, `da`, `el`, `es`, `fi`, `hr`, `hu`, `ja`, `ko`, `nb`, `nl`, `pl`, `rm`, `ru`, `sk`, `sl`, `sq`, `sv`, `tr` |
 
-- A Strapi locale that **is** one of these codes (apart from upper/lower case and `_`/`-`) is used as it is: `de-CH`, `fr_ch`, `es`. The source language is sent without region (`en-US` → `en`).
-- **Every other locale needs a `code`** in the plugin's `locales` setting (the language mapping, see [All settings](#all-settings)), e.g. `de: { code: 'de-CH' }`, `en: { code: 'en-US' }`, `zh-CN: { code: 'zh-Hans' }`. The plugin never guesses a region: an unmapped locale gets the message *has no Supertext language yet* and nothing is sent for it. Strapi's default locale `en` is one of them; as a source it works without a mapping (sources are bare). One `code` serves both directions: with `en: { code: 'en-US' }`, English is translated into `en-US` and from `en`.
-- Formal/informal (`politeness`) isn't offered for English, Swiss German, Romansh, Albanian and Serbian; leave those on `default`, otherwise translating into them fails with *no formal or informal tone*.
+You choose the Supertext language of each Strapi locale under **Settings → Supertext → Translation → Languages**: one combo box per locale, listing exactly these codes. One choice serves both directions: with `en` → `English (United States) (en-US)`, English is translated into `en-US` and from `en` (sources are sent without region).
 
-The settings page shows the code each locale is sent as, and *Not mapped* for locales that still need a `code`.
+![Settings → Supertext → Translation → Languages: one combo box per Strapi locale with its Supertext language, and Formal/Informal where Supertext offers it](images/settings-languages.png)
+
+Each combo box starts with the saved choice, else a suggestion, and a locale nobody chose is translated with that suggestion:
+
+1. A Strapi locale that **is** one of these codes (apart from upper/lower case and `_`/`-`) is used as it is: `de-CH`, `fr_ch` → `fr-CH`, `es`.
+2. Otherwise the default where the language is obvious:
+
+   | Strapi locale | Default |
+   | --- | --- |
+   | `de`, `en`, `fr`, `it`, `pt` | `de-DE`, `en-US`, `fr-FR`, `it-IT`, `pt-PT` |
+   | `zh`, `zh-CN`, `zh-SG` / `zh-TW`, `zh-HK`, `zh-MO` | `zh-Hans` / `zh-Hant` |
+   | `sr` | `sr-Latn` |
+   | a region of a language Supertext has without region (`es-ES`, `nl-NL`, `sl-SI`, `ja-JP` …) | the bare code (`es`, `nl`, `sl`, `ja`) |
+
+3. Anything else (for example `en-IE`, `de-LI`, `gsw`, `sr-RS`) shows an empty **— choose —** combo box marked in red. Until you choose a language, translating into or from it fails with *has no Supertext language yet* and nothing is sent.
+
+Choose a different language where the default isn't what you want (for example `de` → `de-CH` for a Swiss site) and click **Save**. Saving needs the permission *Settings → Supertext → Update* (see [Permissions](#permissions)). The choices are stored in Strapi's database (core store, key `plugin_supertext_languages`).
+
+- **Politeness:** next to each locale whose language offers it, *Formal* (Sie, vous, Lei) or *Informal* (du, tu); *Default* leaves it to Supertext. English, Swiss German, Romansh, Albanian and Serbian have none.
+- **Override for automated setups:** `code` and `politeness` under `locales` in `config/plugins` (see [All settings](#all-settings)) win over the page, per locale and per field. The page shows that locale's value read-only with *Set in config/plugins*. Installations that mapped their locales there before keep working unchanged; to manage a locale on the page instead, remove its entry from `config/plugins` and restart.
 
 ### Get a Supertext account and API key
 
@@ -65,13 +82,12 @@ module.exports = ({ env }) => ({
     enabled: true,
     config: {
       apiKey: env('SUPERTEXT_API_KEY'),
-      // Per Strapi locale: the Supertext code (needed if the locale isn't one) and politeness
-      locales: {
-        'de-CH': { politeness: 'more' },   // a Supertext code already; formal: Sie
-        'fr-CH': { politeness: 'more' },   // formal: vous
-        'pt': { code: 'pt-BR' },           // Strapi's "pt" → Brazilian Portuguese
-        'zh': { code: 'zh-Hans' },         // Strapi's "zh" → Simplified Chinese
-      },
+      // Optional: the language mapping is normally chosen under Settings → Supertext → Translation.
+      // Entries here override that page per locale (for automated setups).
+      // locales: {
+      //   'de': { code: 'de-CH', politeness: 'more' },   // Strapi's "de" → Swiss German, formal (Sie)
+      //   'pt': { code: 'pt-BR' },                       // Strapi's "pt" → Brazilian Portuguese
+      // },
       // versionReports: false,            // see "Version information and the API key check"
     },
   },
@@ -93,13 +109,13 @@ npm run build
 npm run start      # or: npm run develop
 ```
 
-A new **Supertext translation** panel now appears in the right-hand column of every localized entry in the Content Manager, and **Settings → Supertext → Translation** shows the configuration and the installed plugin version (for example *Plugin version: 0.1.0*, linked to that release's notes on GitHub). Mention the version when you contact support.
+A new **Supertext translation** panel now appears in the right-hand column of every localized entry in the Content Manager, and **Settings → Supertext → Translation** shows the connection, the language combo boxes and the installed plugin version (for example *Plugin version: 0.1.0*, linked to that release's notes on GitHub). Mention the version when you contact support.
 
-![Settings → Supertext → Translation: connection status, links to create a Supertext account and generate an API key, the latest API key check, the endpoint, the plugin version, whether version information is sent, and how each Strapi locale is sent to Supertext](images/settings.png)
+![Settings → Supertext → Translation: connection status, links to create a Supertext account and generate an API key, the latest API key check, the endpoint, the plugin version and whether version information is sent](images/settings.png)
 
 ## 4. Check it works
 
-1. Open *Settings → Supertext → Translation* and click **Test connection**. You should see *API key checked: the connection to Supertext works.* Check that no locale says *Not mapped*.
+1. Open *Settings → Supertext → Translation* and click **Test connection**. You should see *API key checked: the connection to Supertext works.* Under *Languages*, check the Supertext language of each locale (no combo box marked *— choose —*) and click **Save**.
 2. Open any saved entry of a localized content type, tick a locale in the Supertext panel and click **Translate with Supertext**.
 
 ## All settings
@@ -108,7 +124,7 @@ A new **Supertext translation** panel now appears in the right-hand column of ev
 | --- | --- | --- |
 | `apiKey` | `SUPERTEXT_API_KEY` env var | Supertext API key, with or without the `Supertext-Auth-Key ` prefix |
 | `endpoint` | `SUPERTEXT_API_ENDPOINT` env var, else `https://api.supertext.com/v1/` | API base URL (`https://api.staging.supertext.com/v1/` for staging) |
-| `locales` | `{}` | The language mapping, per Strapi locale: `code` (the Supertext code to send, e.g. `de-CH`, `pt-BR`, `es`; needed for every locale that isn't itself a Supertext code, see [the list above](#requirements); there are no default regions) and `politeness` (`more` = formal, `less` = informal, `default`; only for targets that offer it) |
+| `locales` | `{}` | Optional override of the language combo boxes under *Settings → Supertext → Translation*, per Strapi locale: `code` (the Supertext code to send, e.g. `de-CH`, `pt-BR`, `es`, see [the list above](#requirements)) and `politeness` (`more` = formal, `less` = informal, `default`; only for targets that offer it). Each field set here wins over the page. |
 | `contentTypes` | `[]` (all localized types) | Allow-list of content-type UIDs, e.g. `['api::article.article']` |
 | `pollIntervalMs` | `2000` | Time between status checks |
 | `pollTimeoutMs` | `180000` | Maximum wait per translation |
@@ -143,6 +159,8 @@ Rebuild the admin panel (`npm run build`), then each user picks a language under
 
 The plugin follows the Content Manager's permissions: a user can translate an entry only if they may **read** its source locale and **create or update** each target locale. Use *Settings → Roles* to limit editors to certain locales as usual.
 
+The settings page has its own permissions under *Settings → Administration panel → Roles → (role) → Settings → Supertext*: **Read** opens *Settings → Supertext → Translation* (and **Test connection**), **Update** saves the language combo boxes. Super Admins have both; give them to other roles as needed.
+
 ## Updating
 
 Install the newer tarball (or `npm update strapi-plugin-supertext-translation` once on npm), then `npm run build` and restart. The version on the settings page shows which one is running.
@@ -159,9 +177,10 @@ Remove the `supertext` block from `config/plugins`, run `npm uninstall strapi-pl
 | *Supertext is not configured yet* / *No API key* | Set `SUPERTEXT_API_KEY` (or `config.apiKey`) and restart Strapi. No key yet? See [Get a Supertext account and API key](#get-a-supertext-account-and-api-key). |
 | *Authentication failed* / *Supertext rejected the API key* on the settings page | The key is wrong or revoked. Check that the whole key was copied into `SUPERTEXT_API_KEY`, or generate a new one at [supertext.com → Integrations → API](https://www.supertext.com/en/integrations/api) (requires the Admin role). No Supertext account yet? [Create one](https://www.supertext.com/person/en/account/signin). Restart Strapi, then **Test connection**. |
 | *The API key couldn't be checked because Supertext can't be reached* | The Strapi server can't reach `api.supertext.com` (firewall, proxy, DNS). Translations need the same connection. |
-| *The language … has no Supertext language yet* / *Not mapped* on the settings page | The Strapi locale isn't a Supertext code: give it a `code` in the plugin's `locales` setting (see [the list](#requirements)), rebuild and restart. |
-| *Supertext does not support this language pair* | A configured `code` Supertext doesn't offer (e.g. `es-ES` instead of `es`, `zh-CN` instead of `zh-Hans`, or the same language as the source); fix the `code`. The message shows the codes that were sent. |
-| *Supertext offers no formal or informal tone for the language …* | `politeness` is `more`/`less` for a target without it (English, Swiss German, Romansh, Albanian, Serbian); remove it or set `default`. The settings page marks it. |
+| *The language … has no Supertext language yet* / a red *— choose —* on the settings page | The Strapi locale has no default (e.g. `en-IE`, `de-LI`, `gsw`): choose its language under *Settings → Supertext → Translation → Languages* and click **Save**. |
+| *Supertext does not support this language pair* | A `code` in `config/plugins` Supertext doesn't offer (e.g. `es-ES` instead of `es`), or source and target are the same language; fix the `code` or the choice on the settings page. The message shows the codes that were sent. |
+| *The language settings could not be saved* | A value Supertext doesn't offer was sent (for example from an old browser tab); reload the page and save again. |
+| *Supertext offers no formal or informal tone for the language …* | `politeness` in `config/plugins` is `more`/`less` for a target without it (English, Swiss German, Romansh, Albanian, Serbian); remove it or set `default`. The settings page marks it. |
 | *This content type is not localized* | Enable internationalization for the content type in the Content-Type Builder. |
 | *not enabled for this content type* | The type isn't in `contentTypes`. |
 | *No … version of this entry found. Save it first.* | The entry hasn't been saved in the source locale yet. |

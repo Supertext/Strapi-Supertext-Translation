@@ -1,8 +1,9 @@
 import type { Core } from '@strapi/strapi';
-import type { PluginConfig } from '../config';
+import type { LocaleOptions, PluginConfig } from '../config';
 import { MAX_DOCUMENT_CHARACTERS, SupertextClient, SupertextError } from '../supertext/client';
 import { buildDocument, parseDocument, type Segment } from '../supertext/html';
-import { politenessFor, sourceCode, supportsPoliteness, targetCode, targetCodeOrNull } from '../supertext/languages';
+import { politenessFor, sourceCode, targetCode } from '../supertext/languages';
+import type { SettingsService } from './settings';
 import { pluginVersion } from '../version';
 import { extract, populateFor, type Attributes, type Job, type SchemaLookup } from './extract';
 
@@ -25,16 +26,6 @@ export interface LocaleResult {
   httpStatus?: number;
 }
 
-export interface LanguageStatus {
-  code: string;
-  name: string;
-  /** The Supertext code it is sent as; null = not mapped (translating into it fails with unsupportedLanguage). */
-  target: string | null;
-  politeness: 'default' | 'more' | 'less';
-  /** Whether the target offers formal/informal (null: not mapped or not in the SDK's list). */
-  politenessSupported: boolean | null;
-}
-
 /** See SupertextError: `code`/`values` are translated in the admin panel, `message` is English. */
 export class TranslationError extends Error {
   constructor(
@@ -49,6 +40,7 @@ export class TranslationError extends Error {
 
 const translator = ({ strapi }: { strapi: Core.Strapi }) => {
   const config = (): PluginConfig => strapi.config.get('plugin::supertext') as PluginConfig;
+  const settings = () => strapi.plugin('supertext').service('settings') as SettingsService;
 
   const schema: SchemaLookup = {
     component: (uid) => ((strapi.components as unknown as Record<string, { attributes: Attributes }>)[uid]?.attributes ?? {}),
@@ -84,8 +76,14 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
   };
 
   /** Sends the segments in as few documents as possible (one unless > ~900k characters). */
-  async function translateJobs(jobs: Job[], targetLocale: string, sourceLocale: string, api: SupertextClient) {
-    const options = config().locales[targetLocale] ?? {};
+  async function translateJobs(
+    jobs: Job[],
+    targetLocale: string,
+    sourceLocale: string,
+    api: SupertextClient,
+    mapping: Record<string, LocaleOptions>
+  ) {
+    const options = mapping[targetLocale] ?? {};
     const chunks: Job[][] = [];
     let current: Job[] = [];
     let size = 0;
@@ -101,9 +99,10 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
     }
     if (current.length) chunks.push(current);
 
-    // Resolved before anything is sent: an unmapped locale or a tone the target lacks sends nothing.
+    // Resolved before anything is sent: a locale without mapping, match or default, or a tone the
+    // target lacks, sends nothing.
     const targetLanguage = targetCode(targetLocale, options.code);
-    const sourceLanguage = sourceCode(sourceLocale, config().locales[sourceLocale]?.code);
+    const sourceLanguage = sourceCode(sourceLocale, mapping[sourceLocale]?.code);
     const politeness = politenessFor(targetLanguage, options.politeness, targetLocale);
 
     let applied = 0;
@@ -129,23 +128,6 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
       return { configured: Boolean(apiKey), endpoint, locales, contentTypes, version: pluginVersion() };
     },
 
-    /** Every Strapi locale with the Supertext code it is sent as (null: not mapped) and its tone. */
-    async languages(): Promise<LanguageStatus[]> {
-      const { locales } = config();
-      let rows: { code: string; name?: string }[] = [];
-      try {
-        rows = (await strapi.plugin('i18n')?.service('locales')?.find()) ?? [];
-      } catch (error) {
-        strapi.log.debug(`[supertext] Could not read the locales: ${(error as Error).message}`);
-      }
-      return rows.map(({ code, name }) => {
-        const options = locales[code] ?? {};
-        const target = targetCodeOrNull(code, options.code);
-        const politeness = options.politeness ?? 'default';
-        return { code, name: name ?? code, target, politeness, politenessSupported: target ? supportsPoliteness(target) : null };
-      });
-    },
-
     /** Locales that already exist for a document, so callers can warn before overwriting. */
     async existingLocales(uid: string, documentId: string): Promise<string[]> {
       const rows = await strapi.db.query(uid as never).findMany({
@@ -163,6 +145,8 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
         throw new TranslationError('Choose at least one target locale other than the source locale.', 400, 'noTargets');
       }
       const api = client();
+      // Settings → Supertext, with locales in config/plugins winning per locale.
+      const mapping = await settings().mapping();
       const documents = strapi.documents(uid as never);
 
       const source = await documents.findOne({
@@ -183,7 +167,7 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
         try {
           // Extract per locale: each target needs its own copy of the data.
           const { data, jobs, uidFields } = extract(model.attributes, source as Record<string, unknown>, schema);
-          const fields = await translateJobs(jobs, locale, sourceLocale, api);
+          const fields = await translateJobs(jobs, locale, sourceLocale, api, mapping);
           const exists = existing.includes(locale);
 
           for (const field of uidFields) {

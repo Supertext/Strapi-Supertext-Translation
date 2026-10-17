@@ -8,7 +8,8 @@ How the plugin is built, how to work on it, and how it's tested, released and de
 admin/src/                 Admin panel (React)
   index.ts                 Registers the edit-view side panel and the settings page
   components/SupertextPanel.tsx
-  pages/Settings.tsx
+  components/LanguagesCard.tsx  Settings → Supertext → Languages: one SingleSelect per Strapi locale
+  pages/Settings.tsx       Settings → Supertext → Translation
   translations/{en,de,fr,it}.json  Admin strings (react-intl), incl. error.<code> messages
   utils/errorText.ts       Server error code → message in the user's language
 server/src/                Server (Koa) part
@@ -16,12 +17,15 @@ server/src/                Server (Koa) part
   routes/admin/index.ts    /supertext/* admin routes
   routes/content-api/      public GET /api/supertext/ping (Commando Center)
   controllers/translate.ts Permission checks, request handling, when the reporter runs
-  services/translator.ts   Orchestration: load source, translate per locale, save; locale → code list
+  services/translator.ts   Orchestration: load source, translate per locale, save
+  services/settings.ts     The language mapping in the core store, combined with config/plugins locales
+  language-settings.ts     Validating, reading and combining the mapping (no Strapi imports)
+  permissions.ts           Admin actions plugin::supertext.settings.read / .update
   services/reporting.ts    one Reporting per process: state in the core store, Strapi version, REST prefix
   reporting.ts             Commando Center: version reports, API key check, ping (Plugin Health's InstallationReporter + the SDK's key check)
   services/extract.ts      Pure schema walk: data for the target + text segments
   supertext/client.ts      the plugin's Supertext client on top of the Supertext SDK; SDK error codes → plugin codes
-  supertext/languages.ts   Strapi locale → Supertext code (the SDK's Languages, no guessing)
+  supertext/languages.ts   Strapi locale → Supertext code (the SDK's Languages: mapping, exact match, default)
   vendor/supertext-sdk/    Supertext SDK sources (TypeScript), bundled with the server; see *Supertext SDK*
   vendor/supertext-plugin-health/  Supertext Plugin Health sources (TypeScript), bundled with the server; see *Supertext Plugin Health*
   supertext/html.ts        Pack/unpack segments into one HTML document
@@ -89,12 +93,12 @@ All Supertext calls go through the [Supertext SDK](https://github.com/Supertext/
 
 Supertext accepts exactly the codes its `GET features` lists (the SDK's `Languages`, from the live API): bare sources (`en`, `de`); targets in one exact form each, regional for German, English, French, Italian and Portuguese (`de-CH`, `en-US`, `pt-BR`), with a script for Chinese and Serbian (`zh-Hans`, `sr-Latn`), a dialect for Swiss German (`gsw-u-sd-chzh`), bare for the others (`es`, `nl`, `sl`). Anything else is HTTP 404 `INVALID_LANGUAGE_PAIR`; formal/informal for a target without it (`en-US`, `rm`, …) is HTTP 400 `FEATURE_ERROR` (`unsupported_feature`). No pair within one language.
 
-`server/src/supertext/languages.ts` turns Strapi locales into Supertext codes with the SDK's `Languages`, **without guessing**. The language mapping is the existing `locales.<locale>.code` option (its meaning changed in SDK 0.2.0: it no longer overrides a default region, there is none):
+`server/src/supertext/languages.ts` turns Strapi locales into Supertext codes with the SDK's `Languages` (SDK 0.4.0). The language mapping is chosen under *Settings → Supertext → Translation → Languages*, one design-system `SingleSelect` per Strapi locale (`admin/src/components/LanguagesCard.tsx`), and stored in Strapi's core store (type `plugin`, name `supertext`, key `languages` → row `plugin_supertext_languages`, `{ <locale>: { code, politeness } }`). `locales.<locale>.code` / `.politeness` in `config/plugins` stay as an override for automated setups: `effectiveOptions()` in `server/src/language-settings.ts` lets each field set there win over the page, and the page shows it read-only. Configurations from before the page existed are not migrated: they keep working as overrides.
 
-- `targetCode(locale, code)`: the `code` option wins (sent as it is, so a language Supertext adds later works before the SDK lists it); else a locale that equals a Supertext code apart from case and `_`/`-` (`de-CH`, `fr_ch` → `fr-CH`, `es`); else `SupertextError('unsupportedLanguage', { language })`, which the translator reports for that locale without calling Supertext. `de` must be mapped (to `de-DE`, `de-CH` or `de-AT`).
-- `sourceCode(locale, code)`: the SDK's `Languages.source()` with the same mapping, which sends the `code` option in its source form (`de-CH` → `de`; one mapping for both directions), else the locale's language (`en-US` → `en`), else `unsupportedLanguage`.
+- `targetCode(locale, code)`: the SDK's `Languages.target(locale, mapping)`: the mapping wins (sent as it is, so a code from `config/plugins` that Supertext adds later works before the SDK lists it); else a locale that equals a Supertext code apart from case and `_`/`-` (`de-CH`, `fr_ch` → `fr-CH`, `es`); else the SDK's default (`Languages.defaultTarget`: `de` → `de-DE`, `en` → `en-US`, `fr` → `fr-FR`, `it` → `it-IT`, `pt` → `pt-PT`, `zh`/`zh-CN`/`zh-SG` → `zh-Hans`, `zh-TW`/`zh-HK`/`zh-MO` → `zh-Hant`, `sr` → `sr-Latn`, a region of a bare target → the bare target: `es-ES` → `es`); else `SupertextError('unsupportedLanguage', { language })`, which the translator reports for that locale without calling Supertext (`en-IE`, `de-LI`, `gsw`, `sr-RS` need a mapping).
+- `sourceCode(locale, code)`: the SDK's `Languages.source()` with the same mapping, which sends the code in its source form (`de-CH` → `de`; one mapping for both directions), else the locale's language (`en-US` → `en`), else `unsupportedLanguage`.
 - `politenessFor(target, politeness)`: `more`/`less` for a target where `Languages.supportsPoliteness()` is false is `unsupportedFeature` before anything is sent (never dropped silently); targets the SDK doesn't list get it as configured.
-- `GET /supertext/status` lists every Strapi locale (i18n's `locales` service) with its code (`target: null` = not mapped) and whether the tone is offered; the settings page marks *Not mapped* and a tone the target lacks.
+- The settings page: `GET /supertext/settings` returns every Strapi locale (i18n's `locales` service) with `saved`, `suggested` (`Languages.suggestTarget()`: exact match, else default, else null), `override`, `target` (what is sent; null = fails) and the tone, plus `targets` (`Languages.targetOptions()`, shown as "Name (code)" with the name from the browser's `Intl.DisplayNames` in the admin's language, the SDK's English name for `gsw-u-sd-*`). Each combo box starts with `saved`, else `suggested`, else *— choose —* (marked red). The politeness select appears only where the chosen target offers it. `PUT /supertext/settings` validates every code against the SDK's list (`Languages.matchTarget()`, stored in canonical form) and every locale against i18n, and refuses politeness for a target without it (400 `invalidSettings`).
 
 The mock APIs (`test/mock-supertext.mjs`, `test/mock-sample-de.mjs`) accept exactly the live target list and bare sources (404 `INVALID_LANGUAGE_PAIR` otherwise) and reject politeness where it isn't offered.
 
@@ -114,16 +118,18 @@ Protocol: [Commando-Center-Supertext-Translation](https://github.com/Supertext/C
 
 ## Admin API
 
-All routes require an authenticated admin (`admin::isAuthenticatedAdmin`).
+All routes require an authenticated admin (`admin::isAuthenticatedAdmin`). The settings routes also need the plugin's admin permissions (`server/src/permissions.ts`, registered in `bootstrap.ts` with the admin's `actionProvider`; under *Roles → Settings → Supertext*): `plugin::supertext.settings.read` for the page (the settings link checks it too), `GET /settings` and `POST /test-connection`; `plugin::supertext.settings.update` for `PUT /settings`. Super Admins get both automatically.
 
 | Route | Purpose |
 | --- | --- |
-| `GET /supertext/status` | `{ configured, endpoint, locales, contentTypes, version, languages: [{ code, name, target, politeness, politenessSupported }], reports: { enabled, check } }` (never the key; `version` is read from the plugin's `package.json` at runtime; `check` is the latest key check `{ status, checkedAt, httpStatus, errorCode, fingerprint }`) |
+| `GET /supertext/status` | `{ configured, endpoint, locales, contentTypes, version, reports: { enabled, check } }` (never the key; `version` is read from the plugin's `package.json` at runtime; `check` is the latest key check `{ status, checkedAt, httpStatus, errorCode, fingerprint }`) |
 | `POST /supertext/test-connection` | The SDK's key check (`GET features`, no cost) → `{ ok, check }` with `check.status` `ok`, `invalid`, `missing`, `unreachable` or `error`. Always HTTP 200 (a 401 would sign the admin out); the page shows `keycheck.<status>` |
-
-Public (content API, no login): `GET /api/supertext/ping?challenge=<16–64 of A-Z a-z 0-9 _ ->` → 200 `{ ok: true, plugin: "Strapi-Supertext-Translation", challenge }`, 400 `{ ok: false }` for any other challenge, 404 with version reports off.
+| `GET /supertext/settings` | `{ languages: [{ code, name, target, saved, suggested, override, politeness, savedPoliteness, politenessSupported }], targets: [{ code, name, politeness }] }` (see *Language codes*) |
+| `PUT /supertext/settings` | Body `{ languages: { <locale>: { code, politeness } } }` (`code` empty = nothing saved: the default applies); answers like `GET`, or 400 `invalidSettings` |
 | `GET /supertext/locales?model=&documentId=` | Locales that exist for a document |
 | `POST /supertext/translate` | See above |
+
+Public (content API, no login): `GET /api/supertext/ping?challenge=<16–64 of A-Z a-z 0-9 _ ->` → 200 `{ ok: true, plugin: "Strapi-Supertext-Translation", challenge }`, 400 `{ ok: false }` for any other challenge, 404 with version reports off.
 
 ## Local development
 
@@ -162,8 +168,9 @@ Server errors are English (`message`, for logs and API clients) and carry a `cod
 | `test/extract.test.ts` | Field selection, copying, ids, dynamic zones, populate tree |
 | `test/client.test.ts` | The plugin's client on the SDK: call sequence, form fields, key prefix, 429 retries, error codes, cleanup (the SDK's own tests run in the SDK repository) |
 | `test/translations.test.ts` | All four admin languages have the same keys, placeholders, tags and URLs; every key, server error code and key check result has an English message |
-| `test/languages.test.ts` | Locale → Supertext code: exact matches, the `code` mapping, `unsupportedLanguage` for `de`, `es-ES`, `zh-CN`; bare sources; formal/informal only where offered |
-| `test/status.test.ts` | Version from `package.json`, status without the key, the locale list with unmapped locales |
+| `test/languages.test.ts` | Locale → Supertext code: exact matches, the mapping, the SDK defaults (`de` → `de-DE`, `zh-TW` → `zh-Hant`, `es-ES` → `es`), `unsupportedLanguage` for `en-IE`, `de-LI`, `gsw`; bare sources; formal/informal only where offered; the combo box's target list |
+| `test/language-settings.test.ts` | The settings page's mapping: validation against the locales and Supertext's list, reading the core store, the `config/plugins` override per field, the rows (saved, suggested, override, target) |
+| `test/status.test.ts` | Version from `package.json`, status without the key |
 | `test/reporting.test.ts` | The setting and the environment, site URL, state kept in the store (never the key), one `installed` report, a changed key checked again, a 401 reported once as `api_key_check`, *Test connection*, nothing sent with reports off, ping answers, no exception when the store fails (fake fetch, never the live API or center) |
 
 CI (`.github/workflows/ci.yml`) runs type checks, tests and the build on Node 20, 22 and 24, then builds the demo admin panel with the packed plugin.
@@ -184,7 +191,7 @@ cd .. && npx playwright install chromium   # once
 npm run docs:screenshots
 ```
 
-Other ports: `MOCK_PORT` for the stand-in, `PORT` for Strapi and `STRAPI_URL` (e.g. `http://127.0.0.1:20601`) for the script. Start from an empty demo database (`rm -rf demo/.tmp`) so the first translation shows as *created*. The script logs in with `DEMO_ADMIN_EMAIL`/`DEMO_ADMIN_PASSWORD` (the defaults above are local-only), captures the edit view, the panel before/after translating, the German result, the overwrite warning, the settings page and the locales page, and shows the live endpoint on the settings screenshot instead of the local stand-in's address.
+Other ports: `MOCK_PORT` for the stand-in, `PORT` for Strapi and `STRAPI_URL` (e.g. `http://127.0.0.1:20601`) for the script. Start from an empty demo database (`rm -rf demo/.tmp`) so the first translation shows as *created*. The script logs in with `DEMO_ADMIN_EMAIL`/`DEMO_ADMIN_PASSWORD` (the defaults above are local-only), captures the edit view, the panel before/after translating, the German result, the overwrite warning, the settings page, its language combo boxes (`settings-languages.png`) and the locales page, and shows the live endpoint on the settings screenshot instead of the local stand-in's address.
 
 ## Demo deployment (Railway)
 
@@ -201,7 +208,7 @@ Optional variables that make a fresh demo ready to use without registering in th
 
 Accounts are only created if they don't exist yet; an existing account's password is never changed by these variables (change it in the admin panel instead). Passwords must follow Strapi's rule (8+ characters, upper- and lower-case letter, number), otherwise the account is skipped with a warning in the log.
 
-On every start the demo also ensures the locales de-CH, fr-CH and it-CH, gives Strapi's Editor role access to all locales (Strapi doesn't grant locales added later to existing roles), and creates one English sample article if none exists (`demo/src/index.js`).
+On every start the demo also ensures the locales de-CH, fr-CH and it-CH, gives Strapi's Editor role access to all locales (Strapi doesn't grant locales added later to existing roles), and saves formal address for the Swiss locales under *Settings → Supertext → Languages* if no language settings are saved yet, and creates one English sample article if none exists (`demo/src/index.js`).
 
 ## Dependency updates
 

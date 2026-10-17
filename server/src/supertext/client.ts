@@ -68,11 +68,11 @@ const ERRORS: Record<string, [string, string]> = {
   invalid_language_pair: ['invalidLanguagePair', 'Supertext does not support this language pair.'],
   unsupported_language: [
     'unsupportedLanguage',
-    'This language has no Supertext language yet. Ask your administrator to map it to a Supertext code (the code option under locales in the plugin configuration).',
+    'This language has no Supertext language yet. Ask your administrator to choose its Supertext language under Settings → Supertext → Translation.',
   ],
   unsupported_feature: [
     'unsupportedFeature',
-    'Supertext offers no formal or informal tone for this language. Ask your administrator to remove the politeness option for it in the plugin configuration.',
+    'Supertext offers no formal or informal tone for this language. Ask your administrator to set it to the default tone under Settings → Supertext → Translation (or remove its politeness option in config/plugins).',
   ],
   not_found: ['notFound', 'The requested Supertext resource was not found.'],
   payload_too_large: ['tooLarge', 'The content is too large for Supertext to translate in one go.'],
