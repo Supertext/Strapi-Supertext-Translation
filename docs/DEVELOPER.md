@@ -29,6 +29,7 @@ server/src/                Server (Koa) part
 scripts/vendor-sdk.sh      updates server/src/vendor/supertext-sdk
 scripts/vendor-plugin-health.sh  updates server/src/vendor/supertext-plugin-health
 test/                      Vitest unit tests + mock Supertext API
+test/e2e/                  End-to-end test against the real Supertext API (own package.json)
 demo/                      Strapi 5 demo app (Article type, Swiss locales, sample entry)
 Dockerfile, railway.json   Demo image for Railway
 ```
@@ -166,9 +167,27 @@ Server errors are English (`message`, for logs and API clients) and carry a `cod
 | `test/status.test.ts` | Version from `package.json`, status without the key, the locale list with unmapped locales |
 | `test/reporting.test.ts` | The setting and the environment, site URL, state kept in the store (never the key), one `installed` report, a changed key checked again, a 401 reported once as `api_key_check`, *Test connection*, nothing sent with reports off, ping answers, no exception when the store fails (fake fetch, never the live API or center) |
 
-CI (`.github/workflows/ci.yml`) runs type checks, tests and the build on Node 20, 22 and 24, then builds the demo admin panel with the packed plugin.
+CI (`.github/workflows/ci.yml`) runs type checks, tests and the build on Node 20, 22 and 24, then builds the demo admin panel with the packed plugin. `.github/workflows/e2e.yml` runs the end-to-end test against the real Supertext API and regenerates the docs screenshots (see *End-to-end tests*).
 
-The end-to-end flow (translate, overwrite, permissions, error responses, admin panel UI) was verified manually against the demo and the mock API; there are no automated end-to-end tests yet.
+## End-to-end tests
+
+The unit tests use fakes. `.github/workflows/e2e.yml` also tests against the **real Supertext API**, so changes on Supertext's side (language codes, regional variants, formatting, rate limits) show up. It runs on every push to `main` that touches the plugin, the demo or the tests, on pull requests that change the E2E test or workflow, every Monday, and by hand (*Actions → E2E → Run workflow*). It builds the demo image (`Dockerfile`) once (Docker layer cache in GitHub Actions) and starts it twice, each with a new PostgreSQL database and demo accounts and Strapi secrets made up for the run:
+
+1. **Real API** (repository or organization secret `SUPERTEXT_API_KEY`; without it these steps are skipped with a warning). Version reports are off (`SUPERTEXT_VERSION_REPORTS=0`), so CI runs don't appear in the Commando Center.
+   - `test/e2e/features.mjs` asks the live `GET features` (cost-free, no plugin or SDK code) whether every pair the demo translates (`en` → `de-CH`, `fr-CH`, `it-CH`) is offered; a missing pair fails the run. Whether the plugin's own language list matches the API is the SDK's job (its own tests).
+   - `test/e2e/live.mjs` (Playwright): the demo editor (`DEMO_EDITOR_*`) logs in to the admin panel, opens each English article, ticks every other locale in the *Supertext translation* panel and clicks *Translate with Supertext*. Then each locale is read back through Strapi's Content Manager API (as the editor) and checked: every English article has exactly one entry per locale, left as a draft, with a slug; every text field and every block is filled and at least 80 % of them changed (single words may stay the same); no `data-st-id`/placeholder or wrapper `<div>` is left; bold, italics, links (and their URLs), headings, list items and the Markdown of rich-text fields are kept; the non-localized `readingTime` is copied; the text is in the target language (common words of each language counted) and de-CH has no "ß"; the panel shows *created*/*replaced* for each locale and no error. Translating again (with the overwrite warning) must update the same entries (same documents, same slug, still drafts, no new entries). Strapi has no placeholders or shortcodes, so the sample content has none. Each run translates the sample article twice into three languages (around 2,500 characters on the key's account).
+2. **Stand-in API** (`test/mock-sample-de.mjs`): the docs screenshots (see *Docs screenshots*), so the images don't change with each machine translation. If `docs/images/` changed, a second job pushes the branch `automation/docs-screenshots` and opens (or updates) the pull request "Docs: regenerate screenshots". This needs *Settings → Actions → General → Allow GitHub Actions to create and approve pull requests*.
+
+If a run fails, the artifact `e2e-debug` has the result pages (`artifacts/*.png`), the demo logs and the stand-in log. Locally:
+
+```bash
+cd test/e2e && npm install && npx playwright install chromium
+# fresh demo (new database) with a real SUPERTEXT_API_KEY and DEMO_EDITOR_*, e.g. PORT=8081
+SUPERTEXT_API_KEY=… E2E_TARGETS=de-CH,fr-CH,it-CH node features.mjs
+STRAPI_URL=http://127.0.0.1:8081 EDITOR_EMAIL=… EDITOR_PASSWORD=… npm run live
+```
+
+`live.mjs` checks the language of the texts, so against the stand-in (which answers German for every locale) only the German checks pass; use it there to try changes to the UI steps without a key.
 
 ## Docs screenshots
 
@@ -184,7 +203,7 @@ cd .. && npx playwright install chromium   # once
 npm run docs:screenshots
 ```
 
-Other ports: `MOCK_PORT` for the stand-in, `PORT` for Strapi and `STRAPI_URL` (e.g. `http://127.0.0.1:20601`) for the script. Start from an empty demo database (`rm -rf demo/.tmp`) so the first translation shows as *created*. The script logs in with `DEMO_ADMIN_EMAIL`/`DEMO_ADMIN_PASSWORD` (the defaults above are local-only), captures the edit view, the panel before/after translating, the German result, the overwrite warning, the settings page and the locales page, and shows the live endpoint on the settings screenshot instead of the local stand-in's address.
+Other ports: `MOCK_PORT` for the stand-in, `PORT` for Strapi and `STRAPI_URL` (e.g. `http://127.0.0.1:20601`) for the script. Start from an empty demo database (`rm -rf demo/.tmp`) so the first translation shows as *created*. The script logs in with `DEMO_ADMIN_EMAIL`/`DEMO_ADMIN_PASSWORD` (the defaults above are local-only), captures the edit view, the panel before/after translating, the German result, the overwrite warning, the settings page and the locales page, and shows the live endpoint on the settings screenshot instead of the local stand-in's address. It also shows a fixed time for *Last checked*, so an image only changes when the UI does. The E2E workflow runs the same script against a fresh demo and the stand-in and opens a pull request when the images change (see *End-to-end tests*).
 
 ## Demo deployment (Railway)
 
@@ -235,4 +254,4 @@ Publishing to npm stays manual: `npm publish` once the package name is registere
 - No bulk translation from the list view yet.
 - No automatic translation on save/publish yet.
 - Human (professional) translation orders are not supported (the WordPress plugin has them).
-- Not yet tested against the live Supertext API.
+- The end-to-end test against the live Supertext API covers the demo's Article type (text, rich text, blocks, a component and a dynamic zone); other field combinations are covered by the unit tests only.

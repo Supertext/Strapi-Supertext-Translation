@@ -141,3 +141,7 @@ demo/plugin.tgz
 demo/.strapi
 demo/types/generated
 demo/.strapi-updater.json
+
+# End-to-end test
+/test/e2e/node_modules/
+/test/e2e/artifacts/
