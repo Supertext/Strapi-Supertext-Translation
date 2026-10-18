@@ -40,6 +40,44 @@ Languages that already have a translation are marked *(exists)*. If you tick one
 
 When a translation is replaced, its URL slug is kept so existing links keep working. A new translation gets a slug built from its translated title.
 
+## Export for translation and import a translated file
+
+Instead of letting Supertext translate right away, you can export the entry as a file, have it translated elsewhere (by a translator, in a translation tool such as Trados, memoQ or Phrase, or in Supertext's web app) and import the translated file again. This doesn't use Supertext's API, so it also works without an API key.
+
+### Export
+
+1. Open the entry in the source language and **save** it: the file holds the saved version.
+2. In the **Supertext translation** panel, tick the languages to translate **into** (the same checkboxes as for translating).
+3. Under **Export for translation**, choose the **File format**:
+   - **XLIFF 1.2 (for translation tools)**: the better choice for translators and translation tools. One file can hold several languages; formatting appears as protected tags the translator can move but not break.
+   - **HTML (one language per file)**: for Supertext's web app or anyone who translates HTML. Tick exactly one language.
+4. Click **Download file**. The file is called e.g. `strapi-article-<entry id>-fr-CH.xlf` (with several languages, without the language at the end).
+
+The file holds exactly the texts *Translate with Supertext* would send (see *What gets translated*). If the entry has none, you get *Nothing to translate.* and no file.
+
+Send the file to your translator, or upload it to Supertext's web app. In an **HTML file**, the translator must leave the head (the `supertext:` lines) and the `data-st-id` attributes alone and translate only the text between the tags. An HTML file can't mark a text as "not translated": imported unchanged, it writes the source text into the target language.
+
+### Import
+
+1. Open any entry and go to **Import translation** in the panel (the file itself says which entry and language it belongs to, so you can import it from anywhere).
+2. Choose the **Translated file (XLIFF or HTML)** (at most 10 MB).
+3. Leave **Also import texts whose source changed since the export** off, unless you want translations of texts that were edited after the export.
+4. Click **Import translation**.
+
+The translation is saved like a Supertext translation: as a **draft**, replacing the earlier translation of those fields (an existing translation keeps its URL slug, a new one gets one from its translated title). Then the panel shows a summary per language:
+
+| Line | Meaning |
+| --- | --- |
+| *Imported: n* | Texts written into the language. **Open** jumps to it. |
+| *Skipped, source changed since the export: n* | The source text was edited after the export, so the translation may be outdated. Import again with the option ticked to use it anyway. |
+| *Not translated in the file: n* | The file has no translation for these texts. |
+| *Formatting changed, not imported: n* | The translation broke or added formatting (tags) the source doesn't have. |
+| *Not in the file: n* | Texts added to the entry after the export. |
+
+Texts that weren't imported keep what the language already has there (or the source text where it has nothing yet, as with a Supertext translation).
+
+Errors instead of a summary: *This file isn’t a valid XLIFF or HTML translation file.*, *This file wasn’t exported by the Supertext plugin, or its header was removed.*, *The file is too large (at most 10 MB).*, *This file belongs to another system (…)* (exported from another Supertext plugin), *The entry this file was exported from no longer exists.*, *The site has no language …* (the locale was removed) and *You may not edit these locales* (your role can't edit that language).
+
 ## What gets translated
 
 - Text fields: short text, long text, rich text (Markdown) and rich text (Blocks). Bold, italic, underline, strikethrough, inline code, links, headings, lists and quotes are kept.

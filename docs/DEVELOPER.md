@@ -17,7 +17,8 @@ server/src/                Server (Koa) part
   routes/admin/index.ts    /supertext/* admin routes
   routes/content-api/      public GET /api/supertext/ping (Commando Center)
   controllers/translate.ts Permission checks, request handling, when the reporter runs
-  services/translator.ts   Orchestration: load source, translate per locale, save
+  services/translator.ts   Orchestration: load source, translate per locale, save (loadEntry/loadSource/writeLocale shared with files)
+  services/files.ts        Translation files: export (XLIFF/HTML) and import with the SDK's TranslationFiles, reference format
   services/settings.ts     The language mapping in the core store, combined with config/plugins locales
   language-settings.ts     Validating, reading and combining the mapping (no Strapi imports)
   permissions.ts           Admin actions plugin::supertext.settings.read / .update
@@ -116,6 +117,16 @@ Protocol: [Commando-Center-Supertext-Translation](https://github.com/Supertext/C
 - **State:** the reporter's JSON (`reporterState()`; the same format the SDK 0.2 reporter stored, so updating sends no new `installed`) in Strapi's core store (`strapi.store`, type `plugin`, name `supertext`, key `reporter` → row `plugin_supertext_reporter` in `strapi_core_store_settings`). It holds the key's SHA-256 fingerprint, never the key.
 - **Ping:** content API route `GET /ping` with `auth: false` → `/api/supertext/ping`; status, headers (`Cache-Control: no-store`) and body exactly as `pingResponse()` returns them. Strapi has no page cache.
 
+## Translation files (export and import)
+
+*Export for translation* and *Import translation* in the panel use the SDK's `TranslationFiles` (SDK 0.5.0, `server/src/vendor/supertext-sdk/translation-file.ts`, imported from `vendor/supertext-sdk/index`: it doesn't call the API, so it isn't in `v1/`). The glue is `server/src/services/files.ts`, the routes are in `controllers/translate.ts` (`exportFile`, `importFile`):
+
+- **Segments:** `extract()`, the same as API translation. Every `Job` has a `key`, its attribute path: `title`, `seo.metaTitle`, `sections.0.quote`, `body.1.0` (blocks: the index in the field, then in `children`), and `keep(other)`, which puts back the value another version of the entry has at that place.
+- **Job metadata:** `plugin` = `Strapi-Supertext-Translation`; `sourceLanguage`/`targetLanguage` = the codes the mapping resolves (`sourceCode`/`targetCodeOrNull` with `settings().mapping()`), else the Strapi code with `_` → `-`, so unmapped locales can still be exported.
+- **Reference format:** `entry:<content-type uid>:<documentId>:<sourceLocale>:<targetLocale>`, each part URI-encoded (`entry:api%3A%3Aarticle.article:abc123:en:de-CH`; `formatReference`/`parseReference`). The source locale is in it because the import collects the segments from the same locale again.
+- **Export:** XLIFF = one job per target locale in one file, HTML = exactly one target. File name `strapi-<type>-<documentId>[-<locale>].xlf|.html`.
+- **Import:** the controller reads the multipart temp file (refused over 10 MB before reading, deleted in `finally`); `TranslationFiles.read`, then per job: `plugin` must be ours (else `fileOtherSystem`), the reference must parse and name a localized, enabled content type and an existing entry (else `fileNotFound`), both locales must exist in i18n (else `fileNoLanguage`), the user must read the source and create/update the target (else `forbiddenEdit`); then `extract()` again and `importTranslations`. `ok` results (and `source_changed` with `includeChanged`) go through `job.apply`, every other job gets `job.keep(target)` (the target locale's draft; without one it keeps the source, as API translation does), and `writeLocale` saves like an API translation (uid fields kept or generated, draft). Nothing is saved when nothing was imported.
+
 ## Admin API
 
 All routes require an authenticated admin (`admin::isAuthenticatedAdmin`). The settings routes also need the plugin's admin permissions (`server/src/permissions.ts`, registered in `bootstrap.ts` with the admin's `actionProvider`; under *Roles → Settings → Supertext*): `plugin::supertext.settings.read` for the page (the settings link checks it too), `GET /settings` and `POST /test-connection`; `plugin::supertext.settings.update` for `PUT /settings`. Super Admins get both automatically.
@@ -128,6 +139,8 @@ All routes require an authenticated admin (`admin::isAuthenticatedAdmin`). The s
 | `PUT /supertext/settings` | Body `{ languages: { <locale>: { code, politeness } } }` (`code` empty = nothing saved: the default applies); answers like `GET`, or 400 `invalidSettings` |
 | `GET /supertext/locales?model=&documentId=` | Locales that exist for a document |
 | `POST /supertext/translate` | See above |
+| `GET /supertext/export?model=&documentId=&sourceLocale=&targetLocales=a,b&format=xliff\|html` | *Export for translation*: the file with `Content-Disposition: attachment` (`application/x-xliff+xml` or `text/html; charset=utf-8`); same permission checks as `/translate`; 422 `fileNothing`, 400 `fileHtmlOneLocale`. No API key needed |
+| `POST /supertext/import` | *Import translation*: multipart `file` (≤ 10 MB, else 413 `fileTooLarge`) and `includeChanged` (`1`); `{ results: [{ uid, documentId, targetLocale, imported, sourceChanged, untranslated, invalid, missing }` or `{ …, error, code, values }] }`; 422 `fileInvalid`/`fileMissingMetadata` for an unreadable file |
 
 Public (content API, no login): `GET /api/supertext/ping?challenge=<16–64 of A-Z a-z 0-9 _ ->` → 200 `{ ok: true, plugin: "Strapi-Supertext-Translation", challenge }`, 400 `{ ok: false }` for any other challenge, 404 with version reports off.
 
@@ -170,6 +183,7 @@ Server errors are English (`message`, for logs and API clients) and carry a `cod
 | `test/translations.test.ts` | All four admin languages have the same keys, placeholders, tags and URLs; every key, server error code and key check result has an English message |
 | `test/languages.test.ts` | Locale → Supertext code: exact matches, the mapping, the SDK defaults (`de` → `de-DE`, `zh-TW` → `zh-Hant`, `es-ES` → `es`), `unsupportedLanguage` for `en-IE`, `de-LI`, `gsw`; bare sources; formal/informal only where offered; the combo box's target list |
 | `test/language-settings.test.ts` | The settings page's mapping: validation against the locales and Supertext's list, reading the core store, the `config/plugins` override per field, the rows (saved, suggested, override, target) |
+| `test/files.test.ts` | Translation files with a fake Strapi: reference round trip; export (extraction keys, mapped and unmapped languages, XLIFF with several targets, HTML with one, nothing to translate); import (written like API translations with slug and blocks formatting, `source_changed` only with the option, untranslated/invalid/missing not written and the target's own text kept, HTML with refused markup, other system, unknown entry or type, missing locale, permissions, unreadable files); the controller's download headers, permission check, temp file deleted and 10 MB limit |
 | `test/status.test.ts` | Version from `package.json`, status without the key |
 | `test/reporting.test.ts` | The setting and the environment, site URL, state kept in the store (never the key), one `installed` report, a changed key checked again, a 401 reported once as `api_key_check`, *Test connection*, nothing sent with reports off, ping answers, no exception when the store fails (fake fetch, never the live API or center) |
 
@@ -240,7 +254,8 @@ Publishing to npm stays manual: `npm publish` once the package name is registere
 
 - Translation runs inside the request; very large entries may hit proxy timeouts. Planned: background jobs with progress.
 - Relations are not set on new translations.
-- No bulk translation from the list view yet.
+- No bulk translation from the list view yet; translation files are one entry per export.
+- No screenshots of the export and import sections yet (`npm run docs:screenshots` doesn't capture them).
 - No automatic translation on save/publish yet.
 - Human (professional) translation orders are not supported (the WordPress plugin has them).
 - Not yet tested against the live Supertext API.

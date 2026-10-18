@@ -5,7 +5,7 @@ import { buildDocument, parseDocument, type Segment } from '../supertext/html';
 import { politenessFor, sourceCode, targetCode } from '../supertext/languages';
 import type { SettingsService } from './settings';
 import { pluginVersion } from '../version';
-import { extract, populateFor, type Attributes, type Job, type SchemaLookup } from './extract';
+import { extract, populateFor, type Attributes, type Extraction, type Job, type SchemaLookup } from './extract';
 
 export interface TranslateRequest {
   uid: string;
@@ -121,7 +121,61 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
     return applied;
   }
 
+  /** The saved (draft) version of an entry in a locale, with components, dynamic zones and media; null if none. */
+  async function loadEntry(uid: string, documentId: string, locale: string): Promise<Record<string, unknown> | null> {
+    const model = contentType(uid);
+    const found = await strapi.documents(uid as never).findOne({
+      documentId,
+      locale,
+      status: 'draft',
+      populate: populateFor(model.attributes, schema) as never,
+    } as never);
+    return (found as Record<string, unknown> | null) ?? null;
+  }
+
+  /** The source version, or the `sourceMissing` error. */
+  async function loadSource(uid: string, documentId: string, sourceLocale: string): Promise<Record<string, unknown>> {
+    const source = await loadEntry(uid, documentId, sourceLocale);
+    if (!source) {
+      throw new TranslationError(`No ${sourceLocale} version of this entry found. Save it first.`, 404, 'sourceMissing', {
+        locale: sourceLocale,
+      });
+    }
+    return source;
+  }
+
+  /**
+   * Saves extracted (and translated) data into a locale: uid fields keep the URL an existing
+   * translation has, or are generated from the translated title for a new one. The same for API
+   * translations and imported translation files.
+   */
+  async function writeLocale(uid: string, documentId: string, locale: string, extraction: Extraction, exists: boolean) {
+    const { data, uidFields } = extraction;
+    for (const field of uidFields) {
+      if (exists) {
+        delete data[field]; // keep the URL the translation already has
+        continue;
+      }
+      try {
+        data[field] = await strapi
+          .plugin('content-manager')
+          .service('uid')
+          .generateUIDField({ contentTypeUID: uid, field, data, locale });
+      } catch (error) {
+        strapi.log.warn(`[supertext] Could not generate ${field} for ${locale}: ${(error as Error).message}`);
+      }
+    }
+    await strapi.documents(uid as never).update({ documentId, locale, data } as never);
+  }
+
   return {
+    contentType,
+    loadEntry,
+    loadSource,
+    writeLocale,
+    /** Extraction of an entry with this content type's schema (fresh copy each call). */
+    extract: (uid: string, entry: Record<string, unknown>) => extract(contentType(uid).attributes, entry, schema),
+
     /** Configuration for the settings page and the panel (never the key). */
     status() {
       const { apiKey, endpoint, locales, contentTypes } = config();
@@ -147,45 +201,17 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
       const api = client();
       // Settings → Supertext, with locales in config/plugins winning per locale.
       const mapping = await settings().mapping();
-      const documents = strapi.documents(uid as never);
-
-      const source = await documents.findOne({
-        documentId,
-        locale: sourceLocale,
-        status: 'draft',
-        populate: populateFor(model.attributes, schema) as never,
-      } as never);
-      if (!source) {
-        throw new TranslationError(`No ${sourceLocale} version of this entry found. Save it first.`, 404, 'sourceMissing', {
-          locale: sourceLocale,
-        });
-      }
+      const source = await loadSource(uid, documentId, sourceLocale);
       const existing = await this.existingLocales(uid, documentId);
 
       const results: LocaleResult[] = [];
       for (const locale of targets) {
         try {
           // Extract per locale: each target needs its own copy of the data.
-          const { data, jobs, uidFields } = extract(model.attributes, source as Record<string, unknown>, schema);
-          const fields = await translateJobs(jobs, locale, sourceLocale, api, mapping);
+          const extraction = extract(model.attributes, source, schema);
+          const fields = await translateJobs(extraction.jobs, locale, sourceLocale, api, mapping);
           const exists = existing.includes(locale);
-
-          for (const field of uidFields) {
-            if (exists) {
-              delete data[field]; // keep the URL the translation already has
-              continue;
-            }
-            try {
-              data[field] = await strapi
-                .plugin('content-manager')
-                .service('uid')
-                .generateUIDField({ contentTypeUID: uid, field, data, locale });
-            } catch (error) {
-              strapi.log.warn(`[supertext] Could not generate ${field} for ${locale}: ${(error as Error).message}`);
-            }
-          }
-
-          await documents.update({ documentId, locale, data } as never);
+          await writeLocale(uid, documentId, locale, extraction, exists);
           results.push({ locale, status: exists ? 'updated' : 'created', fields });
         } catch (error) {
           const known = error instanceof SupertextError || error instanceof TranslationError;

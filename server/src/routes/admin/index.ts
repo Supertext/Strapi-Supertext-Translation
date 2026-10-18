@@ -12,5 +12,7 @@ export default () => ({
     { method: 'PUT', path: '/settings', handler: 'translate.saveSettings', config: { policies: can(ACTIONS.update) } },
     { method: 'GET', path: '/locales', handler: 'translate.locales', config: { policies } },
     { method: 'POST', path: '/translate', handler: 'translate.translate', config: { policies } },
+    { method: 'GET', path: '/export', handler: 'translate.exportFile', config: { policies } },
+    { method: 'POST', path: '/import', handler: 'translate.importFile', config: { policies } },
   ],
 });

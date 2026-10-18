@@ -5,9 +5,14 @@ import { siteUrl } from '../reporting';
 import type { ReportingService } from '../services/reporting';
 import type { SettingsService } from '../services/settings';
 import { InvalidSettingsError } from '../language-settings';
+import { MAX_UPLOAD_BYTES, tooLarge, type FilesService } from '../services/files';
+import { readFile, unlink } from 'node:fs/promises';
+
+/** A file of a multipart upload as Strapi's body parser (formidable) hands it over. */
+type UploadedFile = { filepath?: string; path?: string; size?: number };
 
 type Ctx = {
-  request: { body?: Record<string, unknown>; origin?: string };
+  request: { body?: Record<string, unknown>; origin?: string; files?: Record<string, UploadedFile | UploadedFile[]> };
   set?(headers: Record<string, string>): void;
   query: Record<string, unknown>;
   state: { userAbility: unknown };
@@ -19,6 +24,7 @@ type Ctx = {
 
 const controller = ({ strapi }: { strapi: Core.Strapi }) => {
   const translator = () => strapi.plugin('supertext').service('translator') as TranslatorService;
+  const files = () => strapi.plugin('supertext').service('files') as FilesService;
   const reporting = () => strapi.plugin('supertext').service('reporting') as ReportingService;
   const settings = () => strapi.plugin('supertext').service('settings') as SettingsService;
   /** The site's base URL: `server.url` if absolute, else the origin of this request. */
@@ -36,6 +42,27 @@ const controller = ({ strapi }: { strapi: Core.Strapi }) => {
     strapi.log.error(`[supertext] ${(error as Error).stack ?? error}`);
     ctx.status = 502;
     ctx.body = { error: { message: (error as Error).message } };
+  };
+
+  /** Same rules as the Content Manager: read the source locale, write each target locale. Answers 403 when not. */
+  const deniedLocales = (ctx: Ctx, model: string, sourceLocale: string, targetLocales: string[]) => {
+    const permissions = checker(ctx, model);
+    if (permissions.cannot.read({ locale: sourceLocale })) {
+      return ctx.forbidden(`You may not read the ${sourceLocale} version.`, {
+        code: 'forbiddenRead',
+        values: { locale: sourceLocale },
+      }) ?? true;
+    }
+    const denied = targetLocales.filter(
+      (locale: string) => permissions.cannot.update({ locale }) && permissions.cannot.create({ locale })
+    );
+    if (denied.length) {
+      return ctx.forbidden(`You may not edit these locales: ${denied.join(', ')}`, {
+        code: 'forbiddenEdit',
+        values: { locales: denied.join(', ') },
+      }) ?? true;
+    }
+    return null;
   };
 
   return {
@@ -99,6 +126,71 @@ const controller = ({ strapi }: { strapi: Core.Strapi }) => {
       ctx.body = { locales: await translator().existingLocales(model, documentId) };
     },
 
+    /**
+     * Export for translation: GET ?model&documentId&sourceLocale&targetLocales=a,b&format=xliff|html.
+     * Same permissions as translating; no API key needed.
+     */
+    async exportFile(ctx: Ctx) {
+      const model = String(ctx.query.model ?? '');
+      const documentId = String(ctx.query.documentId ?? '');
+      const sourceLocale = String(ctx.query.sourceLocale ?? '');
+      const raw = ctx.query.targetLocales;
+      const targetLocales = (Array.isArray(raw) ? raw.map(String) : String(raw ?? '').split(',')).filter(Boolean);
+      const format = ctx.query.format === 'html' ? 'html' : 'xliff';
+      if (!model || !documentId || !sourceLocale || !targetLocales.length) {
+        return ctx.badRequest('model, documentId, sourceLocale and targetLocales are required');
+      }
+      const denied = deniedLocales(ctx, model, sourceLocale, targetLocales);
+      if (denied) return denied;
+      try {
+        const file = await files().exportEntry({ uid: model, documentId, sourceLocale, targetLocales, format });
+        ctx.set?.({
+          'Content-Type': file.contentType,
+          'Content-Disposition': `attachment; filename="${file.filename}"`,
+          'Cache-Control': 'no-store',
+        });
+        ctx.body = file.body;
+      } catch (error) {
+        fail(ctx, error);
+      }
+    },
+
+    /**
+     * Import translation: multipart with `file` (XLIFF or HTML, at most 10 MB) and `includeChanged`.
+     * The body parser's temporary file is read into memory and deleted right away.
+     */
+    async importFile(ctx: Ctx) {
+      const upload = ctx.request.files?.file;
+      const file = Array.isArray(upload) ? upload[0] : upload;
+      const filepath = file?.filepath ?? file?.path;
+      try {
+        if (!file || !filepath) {
+          return ctx.badRequest('file is required');
+        }
+        if ((file.size ?? 0) > MAX_UPLOAD_BYTES) {
+          throw tooLarge();
+        }
+        const content = await readFile(filepath, 'utf8');
+        const includeChanged = /^(1|true)$/.test(String(ctx.request.body?.includeChanged ?? ''));
+        const results = await files().importFile({
+          content,
+          includeChanged,
+          canEdit: (uid, sourceLocale, targetLocale) => {
+            const permissions = checker(ctx, uid);
+            return (
+              !permissions.cannot.read({ locale: sourceLocale }) &&
+              !(permissions.cannot.update({ locale: targetLocale }) && permissions.cannot.create({ locale: targetLocale }))
+            );
+          },
+        });
+        ctx.body = { results };
+      } catch (error) {
+        fail(ctx, error);
+      } finally {
+        if (filepath) await unlink(filepath).catch(() => undefined);
+      }
+    },
+
     async translate(ctx: Ctx) {
       const body = ctx.request.body ?? {};
       const model = String(body.model ?? '');
@@ -109,23 +201,8 @@ const controller = ({ strapi }: { strapi: Core.Strapi }) => {
         return ctx.badRequest('model, documentId, sourceLocale and targetLocales are required');
       }
 
-      // Same rules as the Content Manager: read the source locale, write each target locale.
-      const permissions = checker(ctx, model);
-      if (permissions.cannot.read({ locale: sourceLocale })) {
-        return ctx.forbidden(`You may not read the ${sourceLocale} version.`, {
-          code: 'forbiddenRead',
-          values: { locale: sourceLocale },
-        });
-      }
-      const denied = targetLocales.filter(
-        (locale: string) => permissions.cannot.update({ locale }) && permissions.cannot.create({ locale })
-      );
-      if (denied.length) {
-        return ctx.forbidden(`You may not edit these locales: ${denied.join(', ')}`, {
-          code: 'forbiddenEdit',
-          values: { locales: denied.join(', ') },
-        });
-      }
+      const denied = deniedLocales(ctx, model, sourceLocale, targetLocales);
+      if (denied) return denied;
 
       try {
         const results = await translator().translate({ uid: model, documentId, sourceLocale, targetLocales });

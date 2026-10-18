@@ -7,6 +7,21 @@ export interface LocaleResult {
   values?: Record<string, string | number>;
 }
 
+/** One job of an imported translation file (POST /supertext/import). */
+export interface ImportResult {
+  uid: string | null;
+  documentId: string | null;
+  targetLocale: string;
+  imported?: number;
+  sourceChanged?: number;
+  untranslated?: number;
+  invalid?: number;
+  missing?: number;
+  error?: string;
+  code?: string;
+  values?: Record<string, string | number>;
+}
+
 export interface PluginStatus {
   configured: boolean;
   endpoint: string;

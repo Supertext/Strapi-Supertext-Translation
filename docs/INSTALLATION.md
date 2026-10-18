@@ -161,6 +161,13 @@ The plugin follows the Content Manager's permissions: a user can translate an en
 
 The settings page has its own permissions under *Settings → Administration panel → Roles → (role) → Settings → Supertext*: **Read** opens *Settings → Supertext → Translation* (and **Test connection**), **Update** saves the language combo boxes. Super Admins have both; give them to other roles as needed.
 
+## Translation files (export and import)
+
+Editors can export an entry as an XLIFF 1.2 or HTML file from the Supertext panel (*Export for translation*), have it translated anywhere, and import the translated file (*Import translation*); see the [user guide](USER_GUIDE.md#export-for-translation-and-import-a-translated-file). There is nothing to configure, and it works without an API key:
+
+- **Permissions:** the same as translating: read the source locale and create or update the target locale (Content Manager permissions); the content type must be localized and, if you set `contentTypes`, listed there.
+- **Uploads:** at most 10 MB, refused before the file is read. Strapi's body parser (`strapi::body`, multipart) stores the upload in a temporary file; the plugin reads it into memory and deletes it right away. Only files exported by this plugin are accepted, and translations may only use the formatting of the current source.
+
 ## Updating
 
 Install the newer tarball (or `npm update strapi-plugin-supertext-translation` once on npm), then `npm run build` and restart. The version on the settings page shows which one is running.
