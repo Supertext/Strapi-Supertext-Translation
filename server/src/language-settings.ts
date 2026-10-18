@@ -8,7 +8,7 @@ import type { LocaleOptions } from './config';
 import type { Politeness } from './supertext/client';
 import { canonicalTarget, suggestTarget, supportsPoliteness, targetCodeOrNull } from './supertext/languages';
 
-/** Saved per Strapi locale code: the Supertext target code and the tone. */
+/** Saved per Strapi locale code: the Supertext target code, the tone and Translation review (only stored when on). */
 export type LanguageSettings = Record<string, LocaleOptions>;
 
 const POLITENESS: readonly Politeness[] = ['default', 'more', 'less'];
@@ -29,17 +29,18 @@ export function storedSettings(value: unknown): LanguageSettings {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return result;
   for (const [locale, raw] of Object.entries(value as Record<string, unknown>)) {
     if (!raw || typeof raw !== 'object') continue;
-    const { code, politeness } = raw as { code?: unknown; politeness?: unknown };
+    const { code, politeness, review } = raw as { code?: unknown; politeness?: unknown; review?: unknown };
     const entry: LocaleOptions = {};
     if (typeof code === 'string' && canonicalTarget(code)) entry.code = canonicalTarget(code)!;
     if (typeof politeness === 'string' && POLITENESS.includes(politeness as Politeness)) entry.politeness = politeness as Politeness;
-    if (entry.code || (entry.politeness && entry.politeness !== 'default')) result[locale] = entry;
+    if (review === true) entry.review = true;
+    if (entry.code || (entry.politeness && entry.politeness !== 'default') || entry.review) result[locale] = entry;
   }
   return result;
 }
 
 /**
- * Validates what the settings page sends (`{ <locale>: { code, politeness } }`) against the Strapi
+ * Validates what the settings page sends (`{ <locale>: { code, politeness, review } }`) against the Strapi
  * locales and Supertext's target list, and returns what to store. `code` empty or null = not mapped.
  */
 export function parseSettings(input: unknown, locales: string[], overrides: Record<string, LocaleOptions> = {}): LanguageSettings {
@@ -51,7 +52,11 @@ export function parseSettings(input: unknown, locales: string[], overrides: Reco
     if (!locales.includes(locale)) {
       throw new InvalidSettingsError(`Unknown locale ${locale}.`, { locale });
     }
-    const { code, politeness } = (raw && typeof raw === 'object' ? raw : {}) as { code?: unknown; politeness?: unknown };
+    const { code, politeness, review } = (raw && typeof raw === 'object' ? raw : {}) as {
+      code?: unknown;
+      politeness?: unknown;
+      review?: unknown;
+    };
     const entry: LocaleOptions = {};
     if (code !== undefined && code !== null && code !== '') {
       const canonical = typeof code === 'string' ? canonicalTarget(code) : null;
@@ -68,7 +73,11 @@ export function parseSettings(input: unknown, locales: string[], overrides: Reco
       }
       entry.politeness = politeness as Politeness;
     }
-    if (entry.code || entry.politeness) result[locale] = entry;
+    if (review !== undefined && review !== null && typeof review !== 'boolean') {
+      throw new InvalidSettingsError(`Translation review must be true or false.`, { locale });
+    }
+    if (review === true) entry.review = true;
+    if (entry.code || entry.politeness || entry.review) result[locale] = entry;
   }
   return result;
 }
@@ -79,7 +88,8 @@ export function effectiveOptions(saved: LanguageSettings, overrides: Record<stri
   for (const locale of new Set([...Object.keys(saved), ...Object.keys(overrides)])) {
     const code = overrides[locale]?.code ?? saved[locale]?.code;
     const politeness = overrides[locale]?.politeness ?? saved[locale]?.politeness;
-    result[locale] = { ...(code ? { code } : {}), ...(politeness ? { politeness } : {}) };
+    const review = overrides[locale]?.review ?? saved[locale]?.review;
+    result[locale] = { ...(code ? { code } : {}), ...(politeness ? { politeness } : {}), ...(review ? { review: true } : {}) };
   }
   return result;
 }
@@ -95,13 +105,17 @@ export interface LanguageStatus {
   /** What the combo box preselects when nothing is saved: exact match, else default, else null. */
   suggested: string | null;
   /** Set in config/plugins (`locales.<locale>`): wins over the settings page. */
-  override: { code?: string; politeness?: Politeness };
+  override: { code?: string; politeness?: Politeness; review?: boolean };
   /** The tone that applies (config/plugins wins). */
   politeness: Politeness;
   /** The tone saved on the settings page. */
   savedPoliteness: Politeness;
   /** Whether the target offers formal/informal (null: no target or not in the SDK's list). */
   politenessSupported: boolean | null;
+  /** Translation review that applies (config/plugins wins): translations into it go through the review service. */
+  review: boolean;
+  /** Translation review saved on the settings page. */
+  savedReview: boolean;
 }
 
 export function languageStatus(
@@ -115,6 +129,7 @@ export function languageStatus(
     const override: LanguageStatus['override'] = {};
     if (overrides[code]?.code) override.code = overrides[code].code;
     if (overrides[code]?.politeness) override.politeness = overrides[code].politeness;
+    if (typeof overrides[code]?.review === 'boolean') override.review = overrides[code].review;
     return {
       code,
       name: name ?? code,
@@ -125,6 +140,8 @@ export function languageStatus(
       politeness: options[code]?.politeness ?? 'default',
       savedPoliteness: saved[code]?.politeness ?? 'default',
       politenessSupported: target ? supportsPoliteness(target) : null,
+      review: options[code]?.review === true,
+      savedReview: saved[code]?.review === true,
     };
   });
 }

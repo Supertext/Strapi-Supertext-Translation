@@ -38,6 +38,8 @@ Languages that already have a translation are marked *(exists)*. If you tick one
 
 <img src="images/panel-overwrite.png" alt="Panel warning that the existing German translation will be replaced" width="260">
 
+**Translation review:** if your administrator turned on *Translation review* for a language, reviewers (your colleagues or Supertext linguists) check and correct the translations on the website. Their corrections come into Strapi the next time you translate the entry into that language: after a review, translate it again. Texts reviewed once keep their corrected wording in later translations.
+
 When a translation is replaced, its URL slug is kept so existing links keep working. A new translation gets a slug built from its translated title.
 
 ## Export for translation and import a translated file

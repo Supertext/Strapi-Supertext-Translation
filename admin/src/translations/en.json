@@ -69,7 +69,7 @@
   "error.unsupportedFeature": "Supertext offers no formal or informal tone for the language {language}. Ask your administrator to set its politeness to Default under Settings → Supertext → Translation (or remove its politeness option in config/plugins).",
   "settings.col.codeFor": "Supertext language for {locale}",
   "settings.col.politenessFor": "Politeness for {locale}",
-  "settings.languages.overrideHelp": "For automated setups, code and politeness under locales in config/plugins override this page per locale.",
+  "settings.languages.overrideHelp": "For automated setups, code, politeness and review under locales in config/plugins override this page per locale.",
   "settings.languages.none": "No locales yet. Add them under Settings → Internationalization.",
   "settings.languages.saved": "Language settings saved.",
   "settings.save": "Save",
@@ -101,5 +101,9 @@
   "error.fileTooLarge": "The file is too large (at most 10 MB).",
   "error.fileOtherSystem": "This file belongs to another system ({plugin}).",
   "error.fileNotFound": "The entry this file was exported from no longer exists.",
-  "error.fileNoLanguage": "The site has no language {language}."
+  "error.fileNoLanguage": "The site has no language {language}.",
+  "settings.col.review": "Translation review",
+  "settings.col.reviewFor": "Translation review for {locale}",
+  "settings.review.help": "Translation review: translations into this locale go through Supertext’s review service, so reviewers can check and correct them on the website with the Supertext Localization Review extension. Their corrections are used the next time the entry is translated.",
+  "settings.review.off": "Translation review is turned off for every locale (reviewUrl is empty in config/plugins)."
 }

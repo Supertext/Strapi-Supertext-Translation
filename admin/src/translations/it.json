@@ -69,7 +69,7 @@
   "error.unsupportedFeature": "Supertext non offre un tono formale o informale per la lingua {language}. Chieda al Suo amministratore di impostare la sua forma di cortesia su Predefinita in Impostazioni → Supertext → Traduzione (o di rimuovere l’opzione politeness in config/plugins).",
   "settings.col.codeFor": "Lingua Supertext per {locale}",
   "settings.col.politenessFor": "Forma di cortesia per {locale}",
-  "settings.languages.overrideHelp": "Per le installazioni automatizzate, code e politeness in locales in config/plugins sostituiscono questa pagina per ogni lingua.",
+  "settings.languages.overrideHelp": "Per le installazioni automatizzate, code, politeness e review in locales in config/plugins sostituiscono questa pagina per ogni lingua.",
   "settings.languages.none": "Ancora nessuna lingua. Le aggiunga in Impostazioni → Internazionalizzazione.",
   "settings.languages.saved": "Impostazioni delle lingue salvate.",
   "settings.save": "Salva",
@@ -101,5 +101,9 @@
   "error.fileTooLarge": "Il file è troppo grande (al massimo 10 MB).",
   "error.fileOtherSystem": "Questo file appartiene a un altro sistema ({plugin}).",
   "error.fileNotFound": "L’elemento da cui è stato esportato questo file non esiste più.",
-  "error.fileNoLanguage": "Il sito non ha la lingua {language}."
+  "error.fileNoLanguage": "Il sito non ha la lingua {language}.",
+  "settings.col.review": "Revisione delle traduzioni",
+  "settings.col.reviewFor": "Revisione delle traduzioni per {locale}",
+  "settings.review.help": "Revisione delle traduzioni: le traduzioni in questa lingua passano dal servizio di revisione di Supertext, così i revisori possono controllarle e correggerle direttamente sul sito con l’estensione Supertext Localization Review. Le loro correzioni vengono riprese alla prossima traduzione della voce.",
+  "settings.review.off": "La revisione delle traduzioni è disattivata per tutte le lingue (reviewUrl è vuoto in config/plugins)."
 }

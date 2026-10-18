@@ -69,7 +69,7 @@
   "error.unsupportedFeature": "Supertext ne propose pas de ton formel ou informel pour la langue {language}. Demandez à votre administrateur de régler sa formule d’adresse sur Par défaut sous Paramètres → Supertext → Traduction (ou de retirer son option politeness dans config/plugins).",
   "settings.col.codeFor": "Langue Supertext pour {locale}",
   "settings.col.politenessFor": "Formule d’adresse pour {locale}",
-  "settings.languages.overrideHelp": "Pour les installations automatisées, code et politeness sous locales dans config/plugins remplacent cette page pour chaque locale.",
+  "settings.languages.overrideHelp": "Pour les installations automatisées, code, politeness et review sous locales dans config/plugins remplacent cette page pour chaque locale.",
   "settings.languages.none": "Aucune locale pour l’instant. Ajoutez-en sous Paramètres → Internationalisation.",
   "settings.languages.saved": "Paramètres de langue enregistrés.",
   "settings.save": "Enregistrer",
@@ -101,5 +101,9 @@
   "error.fileTooLarge": "Le fichier est trop volumineux (10 Mo au maximum).",
   "error.fileOtherSystem": "Ce fichier appartient à un autre système ({plugin}).",
   "error.fileNotFound": "L’entrée à partir de laquelle ce fichier a été exporté n’existe plus.",
-  "error.fileNoLanguage": "Le site n’a pas de langue {language}."
+  "error.fileNoLanguage": "Le site n’a pas de langue {language}.",
+  "settings.col.review": "Révision des traductions",
+  "settings.col.reviewFor": "Révision des traductions pour {locale}",
+  "settings.review.help": "Révision des traductions : les traductions vers cette locale passent par le service de révision de Supertext, afin que les réviseurs puissent les vérifier et les corriger directement sur le site avec l’extension Supertext Localization Review. Leurs corrections sont reprises lors de la prochaine traduction de l’entrée.",
+  "settings.review.off": "La révision des traductions est désactivée pour toutes les locales (reviewUrl est vide dans config/plugins)."
 }

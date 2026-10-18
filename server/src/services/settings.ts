@@ -25,8 +25,12 @@ const settings = ({ strapi }: { strapi: Core.Strapi }) => {
   const saved = async (): Promise<LanguageSettings> => storedSettings(await strapi.store.get(scope));
   /** Every Strapi locale with its saved, suggested and effective Supertext code. */
   const languages = async () => languageStatus(await strapiLocales(), await saved(), overrides());
-  /** The settings page: the rows and the target codes for the combo boxes. */
-  const page = async () => ({ languages: await languages(), targets: targetOptions() });
+  /** The settings page: the rows, the target codes for the combo boxes and whether Translation review is available. */
+  const page = async () => ({
+    languages: await languages(),
+    targets: targetOptions(),
+    reviewAvailable: Boolean(((strapi.config.get('plugin::supertext') as PluginConfig).reviewUrl ?? '').trim()),
+  });
 
   return {
     saved,

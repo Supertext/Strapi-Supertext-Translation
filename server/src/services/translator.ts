@@ -47,7 +47,7 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
   };
 
   const client = () => {
-    const { apiKey, endpoint, pollIntervalMs, pollTimeoutMs } = config();
+    const { apiKey, endpoint, reviewUrl, pollIntervalMs, pollTimeoutMs } = config();
     if (!apiKey) {
       throw new TranslationError(
         'No Supertext API key configured. Set SUPERTEXT_API_KEY on the server. No Supertext account yet? Create one at https://www.supertext.com/person/en/account/signin. Generate your API key at https://www.supertext.com/en/integrations/api (supertext.com → Integrations → API; requires the Admin role).',
@@ -55,7 +55,7 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
         'notConfigured'
       );
     }
-    return new SupertextClient({ apiKey, endpoint, pollIntervalMs, pollTimeoutMs });
+    return new SupertextClient({ apiKey, endpoint, reviewEndpoint: reviewUrl, pollIntervalMs, pollTimeoutMs });
   };
 
   const contentType = (uid: string) => {
@@ -209,7 +209,8 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
         try {
           // Extract per locale: each target needs its own copy of the data.
           const extraction = extract(model.attributes, source, schema);
-          const fields = await translateJobs(extraction.jobs, locale, sourceLocale, api, mapping);
+          // A locale with *Translation review* on goes through the review service.
+          const fields = await translateJobs(extraction.jobs, locale, sourceLocale, api.forReview(mapping[locale]?.review === true), mapping);
           const exists = existing.includes(locale);
           await writeLocale(uid, documentId, locale, extraction, exists);
           results.push({ locale, status: exists ? 'updated' : 'created', fields });

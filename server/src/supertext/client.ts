@@ -10,12 +10,21 @@ import {
   type ApiKeyCheck,
   type FetchLike,
 } from '../vendor/supertext-sdk/v1/index';
+import { PLUGIN_NAME, pluginVersion } from '../version';
 
 export type { ApiKeyCheck };
 
 export const LIVE_ENDPOINT = LIVE_BASE_URL;
 
-export const USER_AGENT = 'strapi-plugin-supertext-translation';
+/**
+ * Supertext's review service (translation proxy of Supertext Localization Review). It speaks the
+ * same API and forwards to the live Supertext API, keeping every translation so reviewers can
+ * correct them on the website. Used for locales with *Translation review* on.
+ */
+export const REVIEW_URL = 'https://localizationreview-production.up.railway.app/v1/';
+
+/** `Strapi-Supertext-Translation/<version>`, so Supertext and the review service see which release calls. */
+export const USER_AGENT = `${PLUGIN_NAME}/${pluginVersion() ?? '0.0.0'}`;
 
 /** Stay well below the API's 1,000,000 character limit per document. */
 export const MAX_DOCUMENT_CHARACTERS = 900_000;
@@ -25,6 +34,8 @@ export type Politeness = 'default' | 'more' | 'less';
 export interface ClientOptions {
   apiKey: string;
   endpoint?: string;
+  /** The review service for locales with *Translation review* on. Empty = review off everywhere. */
+  reviewEndpoint?: string;
   pollIntervalMs?: number;
   pollTimeoutMs?: number;
   /** Injected for tests. */
@@ -116,10 +127,15 @@ export function fromSdkError(error: SdkError): SupertextError {
 export class SupertextClient {
   private readonly sdk: SdkClient;
 
+  private readonly options: ClientOptions;
+
+  private reviewClient: SupertextClient | null = null;
+
   constructor(options: ClientOptions) {
     if (!options.apiKey) {
       throw new SupertextError('No Supertext API key configured.', undefined, 'notConfigured');
     }
+    this.options = options;
     const pollIntervalMs = Math.max(250, options.pollIntervalMs ?? 2000);
     this.sdk = new SdkClient(options.apiKey, {
       baseUrl: options.endpoint || LIVE_ENDPOINT,
@@ -129,6 +145,22 @@ export class SupertextClient {
       ...(options.fetch ? { fetch: options.fetch as unknown as FetchLike } : {}),
       ...(options.sleep ? { sleep: options.sleep } : {}),
     });
+  }
+
+  /**
+   * The client for a target locale: the review service when its *Translation review* is on (same
+   * key, timeouts, transport and User-Agent), else this one. Without a review endpoint, or with
+   * the same one as the API, always this one. Created once, on first use. `translateDocument`
+   * submits, polls, downloads and deletes with the same client, so a job is always collected
+   * where it was submitted.
+   */
+  forReview(review: boolean): SupertextClient {
+    const reviewEndpoint = (this.options.reviewEndpoint ?? '').trim();
+    const endpoint = this.options.endpoint || LIVE_ENDPOINT;
+    if (!review || !reviewEndpoint || reviewEndpoint.replace(/\/+$/, '') === endpoint.replace(/\/+$/, '')) {
+      return this;
+    }
+    return (this.reviewClient ??= new SupertextClient({ ...this.options, endpoint: reviewEndpoint, reviewEndpoint: '' }));
   }
 
   /** Translates a complete HTML document and returns the translated HTML. */

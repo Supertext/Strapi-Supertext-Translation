@@ -47,10 +47,10 @@ describe('language settings (combo boxes)', () => {
     ];
     const status = languageStatus(rows, { de: { code: 'de-CH', politeness: 'more' } }, { 'fr-CH': { politeness: 'less' } });
     expect(status).toEqual([
-      { code: 'en', name: 'English', target: 'en-US', saved: null, suggested: 'en-US', override: {}, politeness: 'default', savedPoliteness: 'default', politenessSupported: false },
-      { code: 'de', name: 'German', target: 'de-CH', saved: 'de-CH', suggested: 'de-DE', override: {}, politeness: 'more', savedPoliteness: 'more', politenessSupported: true },
-      { code: 'fr-CH', name: 'French (Switzerland)', target: 'fr-CH', saved: null, suggested: 'fr-CH', override: { politeness: 'less' }, politeness: 'less', savedPoliteness: 'default', politenessSupported: true },
-      { code: 'de-LI', name: 'German (Liechtenstein)', target: null, saved: null, suggested: null, override: {}, politeness: 'default', savedPoliteness: 'default', politenessSupported: null },
+      { code: 'en', name: 'English', target: 'en-US', saved: null, suggested: 'en-US', override: {}, politeness: 'default', savedPoliteness: 'default', politenessSupported: false, review: false, savedReview: false },
+      { code: 'de', name: 'German', target: 'de-CH', saved: 'de-CH', suggested: 'de-DE', override: {}, politeness: 'more', savedPoliteness: 'more', politenessSupported: true, review: false, savedReview: false },
+      { code: 'fr-CH', name: 'French (Switzerland)', target: 'fr-CH', saved: null, suggested: 'fr-CH', override: { politeness: 'less' }, politeness: 'less', savedPoliteness: 'default', politenessSupported: true, review: false, savedReview: false },
+      { code: 'de-LI', name: 'German (Liechtenstein)', target: null, saved: null, suggested: null, override: {}, politeness: 'default', savedPoliteness: 'default', politenessSupported: null, review: false, savedReview: false },
     ]);
   });
 
@@ -73,5 +73,22 @@ describe('language settings (combo boxes)', () => {
     expect(page.languages.find((l) => l.code === 'en')).toMatchObject({ saved: 'en-US', target: 'en-GB', override: { code: 'en-GB' } });
     expect(await service.mapping()).toEqual({ de: { code: 'de-CH' }, en: { code: 'en-GB' } });
     await expect(service.save({ de: { code: 'klingon' } })).rejects.toBeInstanceOf(InvalidSettingsError);
+  });
+
+  it('keeps Translation review per locale (off by default; config/plugins wins)', () => {
+    expect(parseSettings({ de: { code: 'de-CH', review: true }, en: { review: false }, 'fr-CH': { review: true } }, LOCALES)).toEqual({
+      de: { code: 'de-CH', review: true },
+      'fr-CH': { review: true },
+    });
+    expect(() => parseSettings({ de: { review: 'yes' } }, LOCALES)).toThrow(InvalidSettingsError);
+    expect(storedSettings({ de: { review: true }, en: { review: 'yes' }, fr: { code: 'fr-CH' } })).toEqual({ de: { review: true }, fr: { code: 'fr-CH' } });
+    expect(effectiveOptions({ de: { review: true }, en: { review: true } }, { de: { review: false }, fr: { review: true } })).toEqual({
+      de: {},
+      en: { review: true },
+      fr: { review: true },
+    });
+    const [de, en] = languageStatus([{ code: 'de' }, { code: 'en' }], { de: { review: true }, en: { review: true } }, { en: { review: false } });
+    expect(de).toMatchObject({ review: true, savedReview: true, override: {} });
+    expect(en).toMatchObject({ review: false, savedReview: true, override: { review: false } });
   });
 });

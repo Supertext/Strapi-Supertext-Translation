@@ -7,6 +7,7 @@ Open an entry, tick the languages in the **Supertext translation** panel, click 
 - Works with Strapi's built-in internationalization (i18n) and its role permissions per locale
 - Keeps rich-text formatting and links; copies numbers, dates and media; rebuilds URL slugs
 - A Supertext language per locale, chosen in a combo box under *Settings → Supertext* (obvious defaults preselected), and formal/informal tone where Supertext offers it
+- Optional *Translation review* per locale: reviewers correct translations on the website, and their corrections come back with the next translation
 - Automatic API key check; optional version information for Supertext support (no content, no key)
 - Re-translate an existing locale on demand, with a clear warning first
 - Export for translation as XLIFF 1.2 (for translation tools) or HTML, and import the translated file with a summary of what was imported

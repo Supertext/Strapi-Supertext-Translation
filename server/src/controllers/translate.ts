@@ -100,7 +100,7 @@ const controller = ({ strapi }: { strapi: Core.Strapi }) => {
       ctx.body = await settings().page();
     },
 
-    /** Saves the combo boxes (`{ languages: { <locale>: { code, politeness } } }`), validated against Supertext's list. */
+    /** Saves the combo boxes (`{ languages: { <locale>: { code, politeness, review } } }`), validated against Supertext's list. */
     async saveSettings(ctx: Ctx) {
       try {
         ctx.body = await settings().save((ctx.request.body ?? {}).languages);

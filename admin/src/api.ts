@@ -25,7 +25,7 @@ export interface ImportResult {
 export interface PluginStatus {
   configured: boolean;
   endpoint: string;
-  locales: Record<string, { code?: string; politeness?: string }>;
+  locales: Record<string, { code?: string; politeness?: string; review?: boolean }>;
   contentTypes: string[];
   /** Plugin version from package.json, null if the server couldn't read it. */
   version: string | null;
@@ -46,12 +46,16 @@ export interface LanguageStatus {
   /** Preselected when nothing is saved: the exact match, else the SDK default, else null. */
   suggested: string | null;
   /** Set under locales in config/plugins: wins over the combo box. */
-  override: { code?: string; politeness?: Politeness };
+  override: { code?: string; politeness?: Politeness; review?: boolean };
   /** The tone that applies (config/plugins wins). */
   politeness: Politeness;
   /** The tone saved on this page. */
   savedPoliteness: Politeness;
   politenessSupported: boolean | null;
+  /** Translation review that applies (config/plugins wins). */
+  review: boolean;
+  /** Translation review saved on this page. */
+  savedReview: boolean;
 }
 
 /** A Supertext target language for the combo box (the SDK's targetOptions()). */
@@ -65,6 +69,8 @@ export interface TargetOption {
 export interface SettingsPage {
   languages: LanguageStatus[];
   targets: TargetOption[];
+  /** False when reviewUrl is '' (Translation review off for every locale). */
+  reviewAvailable: boolean;
 }
 
 /** The plugin's admin permissions (server/src/permissions.ts). */

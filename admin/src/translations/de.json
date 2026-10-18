@@ -69,7 +69,7 @@
   "error.unsupportedFeature": "Supertext bietet für die Sprache {language} keine formelle oder informelle Anrede an. Bitten Sie Ihre Administratorin oder Ihren Administrator, ihre Anrede unter Einstellungen → Supertext → Übersetzung auf Standard zu setzen (oder ihre Option politeness in config/plugins zu entfernen).",
   "settings.col.codeFor": "Supertext-Sprache für {locale}",
   "settings.col.politenessFor": "Anrede für {locale}",
-  "settings.languages.overrideHelp": "Für automatisierte Installationen überschreiben code und politeness unter locales in config/plugins diese Seite pro Sprache.",
+  "settings.languages.overrideHelp": "Für automatisierte Installationen überschreiben code, politeness und review unter locales in config/plugins diese Seite pro Sprache.",
   "settings.languages.none": "Noch keine Sprachen. Fügen Sie sie unter Einstellungen → Internationalisierung hinzu.",
   "settings.languages.saved": "Spracheinstellungen gespeichert.",
   "settings.save": "Speichern",
@@ -101,5 +101,9 @@
   "error.fileTooLarge": "Die Datei ist zu gross (höchstens 10 MB).",
   "error.fileOtherSystem": "Diese Datei gehört zu einem anderen System ({plugin}).",
   "error.fileNotFound": "Der Eintrag, aus dem diese Datei exportiert wurde, existiert nicht mehr.",
-  "error.fileNoLanguage": "Die Website hat keine Sprache {language}."
+  "error.fileNoLanguage": "Die Website hat keine Sprache {language}.",
+  "settings.col.review": "Übersetzungsprüfung",
+  "settings.col.reviewFor": "Übersetzungsprüfung für {locale}",
+  "settings.review.help": "Übersetzungsprüfung: Übersetzungen in diese Sprache laufen über den Prüfdienst von Supertext, damit Prüferinnen und Prüfer sie mit der Erweiterung Supertext Localization Review direkt auf der Website kontrollieren und korrigieren können. Ihre Korrekturen werden beim nächsten Übersetzen des Eintrags übernommen.",
+  "settings.review.off": "Die Übersetzungsprüfung ist für alle Sprachen ausgeschaltet (reviewUrl ist in config/plugins leer)."
 }

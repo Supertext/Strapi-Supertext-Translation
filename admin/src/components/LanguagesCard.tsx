@@ -3,6 +3,7 @@ import { useIntl } from 'react-intl';
 import {
   Box,
   Button,
+  Checkbox,
   Flex,
   SingleSelect,
   SingleSelectOption,
@@ -20,12 +21,12 @@ import { PLUGIN_ID } from '../pluginId';
 import { errorText } from '../utils/errorText';
 import { getTranslation } from '../utils/getTranslation';
 
-type Draft = Record<string, { code: string | null; politeness: Politeness }>;
+type Draft = Record<string, { code: string | null; politeness: Politeness; review: boolean }>;
 
 /** The combo box's starting value: the saved code, else the SDK's suggestion (exact match or default), else empty. */
 const initialDraft = (languages: LanguageStatus[]): Draft =>
   Object.fromEntries(
-    languages.map((language) => [language.code, { code: language.saved ?? language.suggested, politeness: language.savedPoliteness }])
+    languages.map((language) => [language.code, { code: language.saved ?? language.suggested, politeness: language.savedPoliteness, review: language.savedReview }])
   );
 
 /** "German (Switzerland) (de-CH)", the name in the admin's language where the browser knows it. */
@@ -45,7 +46,8 @@ const optionLabel = (option: TargetOption, names: Intl.DisplayNames | null) => {
 /**
  * Settings → Supertext → Translation → Languages: one combo box per Strapi locale (source
  * included: one mapping serves both directions), preselected with the saved code, else the
- * SDK's suggestion. A locale set under `locales` in config/plugins shows that value, read-only.
+ * SDK's suggestion, and the Translation review checkbox. A locale set under `locales` in
+ * config/plugins shows that value, read-only.
  */
 export const LanguagesCard = () => {
   const { formatMessage, locale } = useIntl();
@@ -97,10 +99,18 @@ export const LanguagesCard = () => {
   const setCode = (language: string, code: string | null) =>
     setDraft((current) => {
       const politeness = code && byCode.get(code)?.politeness ? current[language]?.politeness ?? 'default' : 'default';
-      return { ...current, [language]: { code, politeness } };
+      return { ...current, [language]: { code, politeness, review: current[language]?.review ?? false } };
     });
   const setPoliteness = (language: string, politeness: Politeness) =>
-    setDraft((current) => ({ ...current, [language]: { code: current[language]?.code ?? null, politeness } }));
+    setDraft((current) => ({
+      ...current,
+      [language]: { code: current[language]?.code ?? null, politeness, review: current[language]?.review ?? false },
+    }));
+  const setReview = (language: string, review: boolean) =>
+    setDraft((current) => ({
+      ...current,
+      [language]: { code: current[language]?.code ?? null, politeness: current[language]?.politeness ?? 'default', review },
+    }));
 
   const save = async () => {
     setSaving(true);
@@ -135,17 +145,20 @@ export const LanguagesCard = () => {
         {page.languages.length === 0 ? (
           <Typography>{t('settings.languages.none', 'No locales yet. Add them under Settings → Internationalization.')}</Typography>
         ) : (
-          <Table colCount={3} rowCount={page.languages.length + 1}>
+          <Table colCount={4} rowCount={page.languages.length + 1}>
             <Thead>
               <Tr>
                 <Th><Typography variant="sigma">{t('settings.col.locale', 'Strapi locale')}</Typography></Th>
                 <Th><Typography variant="sigma">{t('settings.col.code', 'Supertext language')}</Typography></Th>
                 <Th><Typography variant="sigma">{t('settings.col.politeness', 'Politeness')}</Typography></Th>
+                <Th><Typography variant="sigma">{t('settings.col.review', 'Translation review')}</Typography></Th>
               </Tr>
             </Thead>
             <Tbody>
               {page.languages.map((language) => {
-                const row = draft[language.code] ?? { code: null, politeness: 'default' as Politeness };
+                const row = draft[language.code] ?? { code: null, politeness: 'default' as Politeness, review: false };
+                const reviewOverridden = language.override.review !== undefined;
+                const review = language.override.review ?? row.review;
                 const overridden = Boolean(language.override.code);
                 const code = language.override.code ?? row.code;
                 const target = code ? byCode.get(code) : undefined;
@@ -222,6 +235,23 @@ export const LanguagesCard = () => {
                         <Typography textColor="neutral600">–</Typography>
                       )}
                     </Td>
+                    <Td>
+                      <Flex direction="column" alignItems="flex-start" gap={1}>
+                        <Checkbox
+                          aria-label={t('settings.col.reviewFor', 'Translation review for {locale}', { locale: language.name })}
+                          checked={review && page.reviewAvailable}
+                          disabled={!canUpdate || reviewOverridden || !page.reviewAvailable}
+                          onCheckedChange={(checked: boolean | 'indeterminate') => setReview(language.code, checked === true)}
+                        />
+                        {reviewOverridden && page.reviewAvailable && (
+                          <Typography variant="pi" textColor="neutral600">
+                            {t('settings.override', 'Set in config/plugins (locales.{locale}), which wins over this choice.', {
+                              locale: language.code,
+                            })}
+                          </Typography>
+                        )}
+                      </Flex>
+                    </Td>
                   </Tr>
                 );
               })}
@@ -229,9 +259,17 @@ export const LanguagesCard = () => {
           </Table>
         )}
         <Typography variant="pi" textColor="neutral600">
+          {page.reviewAvailable
+            ? t(
+                'settings.review.help',
+                'Translation review: translations into this locale go through Supertext’s review service, so reviewers can check and correct them on the website with the Supertext Localization Review extension. Their corrections are used the next time the entry is translated.'
+              )
+            : t('settings.review.off', 'Translation review is turned off for every locale (reviewUrl is empty in config/plugins).')}
+        </Typography>
+        <Typography variant="pi" textColor="neutral600">
           {t(
             'settings.languages.overrideHelp',
-            'For automated setups, code and politeness under locales in config/plugins override this page per locale.'
+            'For automated setups, code, politeness and review under locales in config/plugins override this page per locale.'
           )}
         </Typography>
       </Flex>
